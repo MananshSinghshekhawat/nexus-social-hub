@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, Search, Bell, MessageCircle, User, LogOut, Zap, PlusCircle, Shield } from "lucide-react";
+import { Home, Search, Bell, MessageCircle, User, LogOut, Zap, PlusCircle, Shield, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -51,6 +51,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/notifications", icon: Bell, label: "Alerts", badge: unreadNotifications },
     { to: "/messages", icon: MessageCircle, label: "Chat" },
     { to: `/profile/${profile?.username || user?.id}`, icon: User, label: "Profile" },
+    { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
   return (

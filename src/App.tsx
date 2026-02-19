@@ -13,6 +13,8 @@ import ProfilePage from "./pages/ProfilePage";
 import Notifications from "./pages/Notifications";
 import Messages from "./pages/Messages";
 import CreatePostPage from "./pages/CreatePostPage";
+import Settings from "./pages/Settings";
+import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,6 +73,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <AppLayout><CreatePostPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><Settings /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><AdminPanel /></AppLayout>
                 </ProtectedRoute>
               }
             />

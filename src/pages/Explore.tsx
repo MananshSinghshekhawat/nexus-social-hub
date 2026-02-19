@@ -1,21 +1,42 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, TrendingUp, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import PostCard from "@/components/PostCard";
+import FollowButton from "@/components/FollowButton";
 
 const Explore = () => {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, any>>({});
+  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const fetchSuggested = async () => {
+    if (!user) return;
+    // Get users the current user is NOT following
+    const { data: following } = await supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", user.id);
+    const followingIds = following?.map((f) => f.following_id) || [];
+    followingIds.push(user.id); // exclude self
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .not("user_id", "in", `(${followingIds.join(",")})`)
+      .limit(5);
+    setSuggestedUsers(data || []);
+  };
 
   const search = async () => {
     if (!query.trim()) {
-      // Load trending/recent posts
       const { data } = await supabase
         .from("posts")
         .select("*")
@@ -56,6 +77,10 @@ const Explore = () => {
   };
 
   useEffect(() => {
+    fetchSuggested();
+  }, [user]);
+
+  useEffect(() => {
     const timeout = setTimeout(search, 300);
     return () => clearTimeout(timeout);
   }, [query]);
@@ -74,6 +99,40 @@ const Explore = () => {
         />
       </div>
 
+      {/* Suggested users to follow */}
+      {!query && suggestedUsers.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Who to Follow</h2>
+          </div>
+          <div className="space-y-2">
+            {suggestedUsers.map((u) => (
+              <motion.div
+                key={u.user_id}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass rounded-xl p-3 flex items-center gap-3"
+              >
+                <Link to={`/profile/${u.username || u.user_id}`} className="shrink-0">
+                  <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm hover:opacity-80 transition-opacity">
+                    {u.display_name?.[0]?.toUpperCase() || "U"}
+                  </div>
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <Link to={`/profile/${u.username || u.user_id}`} className="hover:underline">
+                    <p className="font-semibold text-sm truncate">{u.display_name || "User"}</p>
+                  </Link>
+                  <p className="text-xs text-muted-foreground truncate">@{u.username || "user"}</p>
+                  {u.bio && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{u.bio}</p>}
+                </div>
+                <FollowButton targetUserId={u.user_id} />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
@@ -84,28 +143,35 @@ const Explore = () => {
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">People</h2>
               {users.map((u) => (
-                <Link
+                <div
                   key={u.user_id}
-                  to={`/profile/${u.username || u.user_id}`}
-                  className="glass rounded-xl p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors block"
+                  className="glass rounded-xl p-3 flex items-center gap-3"
                 >
-                  <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
-                    {u.display_name?.[0]?.toUpperCase() || "U"}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">{u.display_name || "User"}</p>
+                  <Link to={`/profile/${u.username || u.user_id}`} className="shrink-0">
+                    <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm hover:opacity-80 transition-opacity">
+                      {u.display_name?.[0]?.toUpperCase() || "U"}
+                    </div>
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <Link to={`/profile/${u.username || u.user_id}`} className="hover:underline">
+                      <p className="font-semibold text-sm">{u.display_name || "User"}</p>
+                    </Link>
                     <p className="text-xs text-muted-foreground">@{u.username || "user"}</p>
                   </div>
-                </Link>
+                  <FollowButton targetUserId={u.user_id} />
+                </div>
               ))}
             </div>
           )}
 
           {posts.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                {query ? "Posts" : "Trending"}
-              </h2>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  {query ? "Posts" : "Trending"}
+                </h2>
+              </div>
               {posts.map((post) => (
                 <PostCard key={post.id} post={post} profile={profiles[post.user_id]} />
               ))}
