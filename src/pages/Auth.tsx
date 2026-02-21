@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,6 +19,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,28 +27,25 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const response = await api.post('/auth/login', { email, password });
+        login(response.data.token, response.data.user);
+        toast({ title: "Welcome back!", description: "Successfully signed in." });
         navigate("/");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const response = await api.post('/auth/register', {
           email,
           password,
-          options: {
-            data: { username, display_name: displayName },
-            emailRedirectTo: window.location.origin,
-          },
+          username,
+          display_name: displayName
         });
-        if (error) throw error;
-        toast({
-          title: "Check your email",
-          description: "We sent you a confirmation link to verify your account.",
-        });
+        login(response.data.token, response.data.user);
+        toast({ title: "Welcome!", description: "Account created successfully." });
+        navigate("/");
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.response?.data?.error || "Authentication failed",
         variant: "destructive",
       });
     } finally {
@@ -144,6 +143,17 @@ const Auth = () => {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {isLogin && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/forgot-password")}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+              )}
             </div>
 
             <Button
@@ -172,3 +182,4 @@ const Auth = () => {
 };
 
 export default Auth;
+

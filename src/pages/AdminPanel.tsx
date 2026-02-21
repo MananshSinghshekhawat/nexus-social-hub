@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { Shield, Users, FileText, Search, Ban, Trash2, Eye } from "lucide-react";
+import { Shield, Users, FileText, Search, Trash2, Eye } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -19,22 +19,22 @@ import {
 } from "@/components/ui/dialog";
 
 interface UserRow {
-  user_id: string;
+  _id: string;
   username: string | null;
   display_name: string | null;
   bio: string | null;
+  avatar_url?: string;
   created_at: string;
 }
 
 interface PostRow {
-  id: string;
-  user_id: string;
+  _id: string;
+  user: { _id: string; display_name: string; username: string };
   content: string | null;
   post_type: string;
   likes_count: number;
   comments_count: number;
   created_at: string;
-  author_name?: string;
 }
 
 type Tab = "users" | "content";
@@ -42,7 +42,6 @@ type Tab = "users" | "content";
 const AdminPanel = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
@@ -51,77 +50,44 @@ const AdminPanel = () => {
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalUsers: 0, totalPosts: 0, totalComments: 0 });
 
-  useEffect(() => {
-    if (!user) return;
-    const check = async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin");
-      setIsAdmin((data?.length ?? 0) > 0);
-    };
-    check();
-  }, [user]);
-
-  useEffect(() => {
-    if (isAdmin !== true) return;
-    fetchData();
-  }, [isAdmin]);
+  const isAdmin = user?.role === "admin";
 
   const fetchData = async () => {
     setLoading(true);
-
-    const [usersRes, postsRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, username, display_name, bio, created_at").order("created_at", { ascending: false }),
-      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100),
-    ]);
-
-    const usersList = usersRes.data || [];
-    setUsers(usersList);
-
-    const postsList = postsRes.data || [];
-    // Enrich posts with author names
-    const userIds = [...new Set(postsList.map((p) => p.user_id))];
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
-      const map = new Map(profiles?.map((p) => [p.user_id, p.display_name]));
-      setPosts(postsList.map((p) => ({ ...p, author_name: map.get(p.user_id) || "Unknown" })));
-    } else {
-      setPosts(postsList);
+    try {
+      const [statsRes, usersRes, postsRes] = await Promise.all([
+        api.get('/admin/stats'),
+        api.get('/admin/users'),
+        api.get('/admin/posts')
+      ]);
+      setStats(statsRes.data);
+      setUsers(usersRes.data);
+      setPosts(postsRes.data);
+    } catch (error) {
+      console.error("Failed to fetch admin data", error);
+      toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-
-    // Stats
-    const { count: commentCount } = await supabase.from("comments").select("*", { count: "exact", head: true });
-    setStats({
-      totalUsers: usersList.length,
-      totalPosts: postsList.length,
-      totalComments: commentCount || 0,
-    });
-
-    setLoading(false);
   };
+
+  useEffect(() => {
+    if (isAdmin) fetchData();
+  }, [isAdmin]);
 
   const handleDeletePost = async () => {
     if (!deletePostId) return;
-    const { error } = await supabase.from("posts").delete().eq("id", deletePostId);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await api.delete(`/admin/posts/${deletePostId}`);
       toast({ title: "Post removed" });
-      setPosts((prev) => prev.filter((p) => p.id !== deletePostId));
+      setPosts((prev) => prev.filter((p) => p._id !== deletePostId));
       setStats((prev) => ({ ...prev, totalPosts: prev.totalPosts - 1 }));
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete post", variant: "destructive" });
+    } finally {
+      setDeletePostId(null);
     }
-    setDeletePostId(null);
   };
-
-  if (isAdmin === null) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-      </div>
-    );
-  }
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -136,7 +102,7 @@ const AdminPanel = () => {
     (p) =>
       !searchQuery ||
       p.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.author_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      p.user?.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -201,13 +167,17 @@ const AdminPanel = () => {
         <div className="space-y-2">
           {filteredUsers.map((u) => (
             <motion.div
-              key={u.user_id}
+              key={u._id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="glass rounded-xl p-4 flex items-center gap-3"
             >
-              <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0">
-                {u.display_name?.[0]?.toUpperCase() || "U"}
+              <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0 overflow-hidden">
+                {u.avatar_url ? (
+                  <img src={u.avatar_url} className="h-full w-full object-cover" alt="" />
+                ) : (
+                  u.display_name?.[0]?.toUpperCase() || "U"
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">{u.display_name || "Unnamed"}</p>
@@ -223,7 +193,7 @@ const AdminPanel = () => {
         <div className="space-y-2">
           {filteredPosts.map((p) => (
             <motion.div
-              key={p.id}
+              key={p._id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="glass rounded-xl p-4"
@@ -231,7 +201,7 @@ const AdminPanel = () => {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {p.author_name} · {formatDistanceToNow(new Date(p.created_at), { addSuffix: true })}
+                    {p.user?.display_name || "Unknown"} · {formatDistanceToNow(new Date(p.created_at), { addSuffix: true })}
                   </p>
                   <p className="text-sm line-clamp-2">{p.content || "(No text content)"}</p>
                   <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
@@ -240,7 +210,7 @@ const AdminPanel = () => {
                     <span className="capitalize">{p.post_type}</span>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeletePostId(p.id)}>
+                <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeletePostId(p._id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
