@@ -1,56 +1,48 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Home, Search, Bell, MessageCircle, User, LogOut, Zap, PlusCircle, Shield, Settings } from "lucide-react";
 import { motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import api from "@/lib/api";
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const { profile, signOut, user } = useAuth();
+  const { logout, user } = useAuth();
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     if (!user) return;
-    
-    const checkAdmin = async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin");
-      setIsAdmin((data?.length ?? 0) > 0);
+
+    const checkAdmin = () => {
+      setIsAdmin(user.role === 'admin');
     };
 
     const fetchUnread = async () => {
-      const { count } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("read", false);
-      setUnreadNotifications(count ?? 0);
+      try {
+        const { data } = await api.get('/notifications/unread-count');
+        setUnreadNotifications(data.count);
+      } catch (error) {
+        setUnreadNotifications(0);
+      }
     };
 
     checkAdmin();
     fetchUnread();
 
-    const channel = supabase
-      .channel("notifications-count")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => {
-        setUnreadNotifications((prev) => prev + 1);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    // Refresh interval for badges (could also use sockets)
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const navItems = [
     { to: "/", icon: Home, label: "Feed" },
     { to: "/explore", icon: Search, label: "Explore" },
+    { to: "/reels", icon: Zap, label: "Reels" },
+    { to: "/shorts", icon: PlusCircle, label: "Shorts" },
     { to: "/notifications", icon: Bell, label: "Alerts", badge: unreadNotifications },
     { to: "/messages", icon: MessageCircle, label: "Chat" },
-    { to: `/profile/${profile?.username || user?.id}`, icon: User, label: "Profile" },
+    { to: `/profile/${user?.username || user?._id}`, icon: User, label: "Profile" },
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
@@ -113,18 +105,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         <div className="border-t border-border p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
-              {profile?.display_name?.[0]?.toUpperCase() || "U"}
+          <Link
+            to={`/profile/${user?.username || user?._id}`}
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted transition-all group"
+          >
+            <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm overflow-hidden shrink-0">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url.startsWith('http') ? user.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${user.avatar_url}`}
+                  className="h-full w-full object-cover"
+                  alt=""
+                />
+              ) : (
+                user?.display_name?.[0]?.toUpperCase() || "U"
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{profile?.display_name || "User"}</p>
-              <p className="text-xs text-muted-foreground truncate">@{profile?.username || "user"}</p>
+              <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{user?.display_name || "User"}</p>
+              <p className="text-xs text-muted-foreground truncate">@{user?.username || "user"}</p>
             </div>
-            <button onClick={signOut} className="text-muted-foreground hover:text-destructive transition-colors">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                logout();
+              }}
+              className="text-muted-foreground hover:text-destructive transition-colors p-1"
+            >
               <LogOut className="h-4 w-4" />
             </button>
-          </div>
+          </Link>
         </div>
       </aside>
 
@@ -167,3 +176,4 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default AppLayout;
+

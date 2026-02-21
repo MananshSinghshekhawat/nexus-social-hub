@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth, Profile } from "@/contexts/AuthContext";
+import api from "@/lib/api";
+import { useAuth, User } from "@/contexts/AuthContext";
 import PostCard from "@/components/PostCard";
 import FollowButton from "@/components/FollowButton";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { Edit3, Calendar, Globe, MessageCircle, Grid3X3, Bookmark } from "lucide-react";
+import { Edit3, Calendar, Globe, MessageCircle, Grid3X3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -23,9 +23,9 @@ import {
 
 const ProfilePage = () => {
   const { identifier } = useParams<{ identifier: string }>();
-  const { user, profile: myProfile, refreshProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -36,77 +36,84 @@ const ProfilePage = () => {
   const [showFollowing, setShowFollowing] = useState(false);
   const [followersList, setFollowersList] = useState<any[]>([]);
   const [followingList, setFollowingList] = useState<any[]>([]);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const { toast } = useToast();
 
-  const isOwnProfile = user?.id === profile?.user_id;
+  const isOwnProfile = user?._id === profile?._id;
+
+  const getImageUrl = (url: string | null | undefined) => {
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${url}`;
+  };
 
   useEffect(() => {
-    if (!identifier) return;
-    const fetchProfile = async () => {
+    const fetchProfileData = async () => {
+      if (!identifier) return;
       setLoading(true);
-      let { data } = await supabase.from("profiles").select("*").eq("username", identifier).maybeSingle();
-      if (!data) {
-        const res = await supabase.from("profiles").select("*").eq("user_id", identifier).maybeSingle();
-        data = res.data;
-      }
-      if (data) {
-        setProfile(data as Profile);
-        setEditForm({ display_name: data.display_name || "", bio: data.bio || "", website: data.website || "" });
+      try {
+        const response = await api.get(`/users/${identifier}`);
+        const userData = response.data;
+        setProfile(userData);
 
-        const [postRes, followersRes, followingRes] = await Promise.all([
-          supabase.from("posts").select("*").eq("user_id", data.user_id).order("created_at", { ascending: false }),
-          supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", data.user_id),
-          supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", data.user_id),
+        setEditForm({
+          display_name: userData.display_name || "",
+          bio: userData.bio || "",
+          website: userData.website || ""
+        });
+
+        // Use userData._id for sub-resources
+        const [postsRes, followersRes, followingRes] = await Promise.all([
+          api.get(`/posts?userId=${userData._id}`),
+          api.get(`/users/${userData._id}/followers`),
+          api.get(`/users/${userData._id}/following`)
         ]);
 
-        setPosts(postRes.data || []);
-        setFollowersCount(followersRes.count || 0);
-        setFollowingCount(followingRes.count || 0);
+        setPosts(postsRes.data);
+        setFollowersList(followersRes.data);
+        setFollowingList(followingRes.data);
+        setFollowersCount(followersRes.data.length);
+        setFollowingCount(followingRes.data.length);
+
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        toast({ title: "Error", description: "Profile not found", variant: "destructive" });
+        navigate("/");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
-    fetchProfile();
-  }, [identifier, user]);
 
-  const fetchFollowersList = async () => {
-    if (!profile) return;
-    const { data: follows } = await supabase.from("follows").select("follower_id").eq("following_id", profile.user_id);
-    if (follows && follows.length > 0) {
-      const ids = follows.map((f) => f.follower_id);
-      const { data: profiles } = await supabase.from("profiles").select("user_id, username, display_name, bio").in("user_id", ids);
-      setFollowersList(profiles || []);
-    } else {
-      setFollowersList([]);
-    }
-    setShowFollowers(true);
-  };
-
-  const fetchFollowingList = async () => {
-    if (!profile) return;
-    const { data: follows } = await supabase.from("follows").select("following_id").eq("follower_id", profile.user_id);
-    if (follows && follows.length > 0) {
-      const ids = follows.map((f) => f.following_id);
-      const { data: profiles } = await supabase.from("profiles").select("user_id, username, display_name, bio").in("user_id", ids);
-      setFollowingList(profiles || []);
-    } else {
-      setFollowingList([]);
-    }
-    setShowFollowing(true);
-  };
+    fetchProfileData();
+  }, [identifier, navigate, toast]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
-    const { error } = await supabase
-      .from("profiles")
-      .update(editForm)
-      .eq("user_id", user.id);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      setProfile((prev) => prev ? { ...prev, ...editForm } : null);
+    try {
+      const formData = new FormData();
+      formData.append("display_name", editForm.display_name);
+      formData.append("bio", editForm.bio);
+      formData.append("website", editForm.website);
+      if (avatarFile) formData.append("avatar", avatarFile);
+      if (coverFile) formData.append("cover", coverFile);
+
+      const response = await api.patch(`/users/me`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      setProfile(response.data);
       setEditing(false);
+      setAvatarFile(null);
+      setCoverFile(null);
       refreshProfile();
       toast({ title: "Profile updated" });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update profile",
+        variant: "destructive"
+      });
     }
   };
 
@@ -141,19 +148,23 @@ const ProfilePage = () => {
             <p className="text-muted-foreground text-sm text-center py-4">No {title.toLowerCase()} yet</p>
           ) : (
             list.map((u) => (
-              <div key={u.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <Link to={`/profile/${u.username || u.user_id}`} onClick={onClose} className="shrink-0">
+              <div key={u._id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                <Link to={`/profile/${u.username || u._id}`} onClick={onClose} className="shrink-0">
                   <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
-                    {u.display_name?.[0]?.toUpperCase() || "U"}
+                    {u.avatar_url ? (
+                      <img src={getImageUrl(u.avatar_url)} className="h-full w-full rounded-full object-cover" alt="" />
+                    ) : (
+                      u.display_name?.[0]?.toUpperCase() || "U"
+                    )}
                   </div>
                 </Link>
                 <div className="flex-1 min-w-0">
-                  <Link to={`/profile/${u.username || u.user_id}`} onClick={onClose} className="hover:underline">
+                  <Link to={`/profile/${u.username || u._id}`} onClick={onClose} className="hover:underline">
                     <p className="font-semibold text-sm truncate">{u.display_name || "User"}</p>
                   </Link>
                   <p className="text-xs text-muted-foreground truncate">@{u.username || "user"}</p>
                 </div>
-                <FollowButton targetUserId={u.user_id} size="sm" />
+                <FollowButton targetUserId={u._id} size="sm" />
               </div>
             ))
           )}
@@ -164,21 +175,26 @@ const ProfilePage = () => {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Profile Header */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl overflow-hidden"
       >
-        {/* Cover */}
         <div className="h-36 gradient-primary opacity-80 relative">
+          {profile.cover_url && (
+            <img src={getImageUrl(profile.cover_url)} className="absolute inset-0 w-full h-full object-cover" alt="" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-card/40" />
         </div>
 
         <div className="px-6 pb-6">
           <div className="flex items-end gap-4 -mt-12 relative z-10">
-            <div className="h-24 w-24 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl font-display shadow-lg">
-              {profile.display_name?.[0]?.toUpperCase() || "U"}
+            <div className="h-24 w-24 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl font-display shadow-lg overflow-hidden">
+              {profile.avatar_url ? (
+                <img src={getImageUrl(profile.avatar_url)} className="h-full w-full object-cover" alt="" />
+              ) : (
+                profile.display_name?.[0]?.toUpperCase() || "U"
+              )}
             </div>
             <div className="flex-1 min-w-0 pt-14">
               <h1 className="text-xl font-bold font-display">{profile.display_name || "User"}</h1>
@@ -192,7 +208,7 @@ const ProfilePage = () => {
               ) : (
                 <>
                   <FollowButton
-                    targetUserId={profile.user_id}
+                    targetUserId={profile._id}
                     onFollowChange={(following) => setFollowersCount((c) => following ? c + 1 : c - 1)}
                   />
                   <Button variant="outline" size="sm" onClick={handleMessage}>
@@ -218,11 +234,11 @@ const ProfilePage = () => {
           </div>
 
           <div className="mt-4 flex items-center gap-6 text-sm">
-            <button onClick={fetchFollowersList} className="hover:underline transition-colors">
+            <button onClick={() => setShowFollowers(true)} className="hover:underline transition-colors">
               <span className="font-bold">{followersCount}</span>
               <span className="text-muted-foreground ml-1">Followers</span>
             </button>
-            <button onClick={fetchFollowingList} className="hover:underline transition-colors">
+            <button onClick={() => setShowFollowing(true)} className="hover:underline transition-colors">
               <span className="font-bold">{followingCount}</span>
               <span className="text-muted-foreground ml-1">Following</span>
             </button>
@@ -234,7 +250,6 @@ const ProfilePage = () => {
         </div>
       </motion.div>
 
-      {/* Posts Section */}
       <div className="space-y-1">
         <div className="flex items-center gap-2 px-1 pb-3">
           <Grid3X3 className="h-4 w-4 text-muted-foreground" />
@@ -249,8 +264,8 @@ const ProfilePage = () => {
           ) : (
             posts.map((post) => (
               <PostCard
-                key={post.id}
-                post={post}
+                key={post._id}
+                post={{ ...post, id: post._id }}
                 profile={{ username: profile.username, display_name: profile.display_name, avatar_url: profile.avatar_url }}
               />
             ))
@@ -258,13 +273,20 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Edit Dialog */}
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Profile</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Avatar Image</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+              />
+            </div>
             <div className="space-y-2">
               <Label>Display Name</Label>
               <Input
@@ -298,9 +320,18 @@ const ProfilePage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Followers/Following dialogs */}
-      <UserListDialog open={showFollowers} onClose={() => setShowFollowers(false)} title="Followers" list={followersList} />
-      <UserListDialog open={showFollowing} onClose={() => setShowFollowing(false)} title="Following" list={followingList} />
+      <UserListDialog
+        open={showFollowers}
+        onClose={() => setShowFollowers(false)}
+        title="Followers"
+        list={followersList}
+      />
+      <UserListDialog
+        open={showFollowing}
+        onClose={() => setShowFollowing(false)}
+        title="Following"
+        list={followingList}
+      />
     </div>
   );
 };

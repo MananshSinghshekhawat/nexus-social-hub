@@ -1,0 +1,26 @@
+const mongoose = require('mongoose');
+
+const postSchema = new mongoose.Schema({
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    content: { type: String, default: '' },
+    image_url: { type: String },
+    video_url: { type: String },
+    audio_name: { type: String, default: '' },
+    post_type: {
+        type: String,
+        required: true,
+        enum: ['text', 'image', 'story', 'reel', 'video', 'shorts'],
+        default: 'text'
+    },
+    filter: { type: String, default: 'none' },
+    likes_count: { type: Number, default: 0 },
+    comments_count: { type: Number, default: 0 },
+    expires_at: { type: Date }, // For stories
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+}, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
+
+// Index for performance
+postSchema.index({ user: 1, created_at: -1 });
+
+module.exports = mongoose.model('Post', postSchema);

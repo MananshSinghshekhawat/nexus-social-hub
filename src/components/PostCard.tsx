@@ -1,6 +1,4 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 import { Heart, MessageCircle, Share2, MoreHorizontal, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
@@ -14,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import CommentsSection from "./CommentsSection";
+import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PostCardProps {
   post: {
@@ -21,7 +21,9 @@ interface PostCardProps {
     user_id: string;
     content: string;
     image_url: string | null;
+    video_url: string | null;
     post_type: string;
+    filter?: string;
     likes_count: number;
     comments_count: number;
     created_at: string;
@@ -36,51 +38,30 @@ interface PostCardProps {
 
 const PostCard = ({ post, profile: authorProfile, onDelete }: PostCardProps) => {
   const { user } = useAuth();
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(false); // We need an initial liked state from backend eventually
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
   const { toast } = useToast();
 
-  useEffect(() => {
+  const handleLike = async () => {
     if (!user) return;
-    supabase
-      .from("likes")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("post_id", post.id)
-      .maybeSingle()
-      .then(({ data }) => setLiked(!!data));
-  }, [user, post.id]);
-
-  const toggleLike = async () => {
-    if (!user) return;
-    if (liked) {
-      setLiked(false);
-      setLikesCount((c) => c - 1);
-      await supabase.from("likes").delete().eq("user_id", user.id).eq("post_id", post.id);
-    } else {
-      setLiked(true);
-      setLikesCount((c) => c + 1);
-      await supabase.from("likes").insert({ user_id: user.id, post_id: post.id });
-      // Notification
-      if (post.user_id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: post.user_id,
-          actor_id: user.id,
-          type: "like",
-          post_id: post.id,
-        });
-      }
+    try {
+      const response = await api.post(`/social/like/${post.id}`);
+      setLiked(response.data.liked);
+      setLikesCount((prev) => response.data.liked ? prev + 1 : prev - 1);
+    } catch (error) {
+      toast({ title: "Error", description: "Could not like post", variant: "destructive" });
     }
   };
 
   const handleDelete = async () => {
-    const { error } = await supabase.from("posts").delete().eq("id", post.id);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await api.delete(`/posts/${post.id}`);
+      toast({ title: "Deleted", description: "Post deleted successfully" });
       onDelete?.();
+    } catch (error) {
+      toast({ title: "Error", description: "Could not delete post", variant: "destructive" });
     }
   };
 
@@ -95,7 +76,15 @@ const PostCard = ({ post, profile: authorProfile, onDelete }: PostCardProps) => 
       <div className="flex items-start gap-3">
         <Link to={`/profile/${authorProfile?.username || post.user_id}`}>
           <div className="h-10 w-10 shrink-0 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm hover:opacity-80 transition-opacity">
-            {authorProfile?.display_name?.[0]?.toUpperCase() || "U"}
+            {authorProfile?.avatar_url ? (
+              <img
+                src={authorProfile.avatar_url.startsWith('http') ? authorProfile.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${authorProfile.avatar_url}`}
+                className="h-full w-full rounded-full object-cover"
+                alt=""
+              />
+            ) : (
+              authorProfile?.display_name?.[0]?.toUpperCase() || "U"
+            )}
           </div>
         </Link>
         <div className="flex-1 min-w-0">
@@ -123,13 +112,28 @@ const PostCard = ({ post, profile: authorProfile, onDelete }: PostCardProps) => 
           </div>
           <p className="mt-1.5 text-sm whitespace-pre-wrap">{post.content}</p>
           {post.image_url && (
-            <div className="mt-3 rounded-xl overflow-hidden">
-              <img src={post.image_url} alt="" className="w-full object-cover max-h-96" />
+            <div className="mt-3 rounded-xl overflow-hidden bg-black/5">
+              <img
+                src={post.image_url.startsWith('http') ? post.image_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${post.image_url}`}
+                alt=""
+                className="w-full object-cover max-h-[500px] transition-all duration-300"
+                style={{ filter: post.filter && post.filter !== 'none' ? post.filter : '' }}
+              />
+            </div>
+          )}
+          {post.video_url && (
+            <div className="mt-3 rounded-xl overflow-hidden bg-black">
+              <video
+                src={post.video_url.startsWith('http') ? post.video_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${post.video_url}`}
+                controls
+                className="w-full object-cover max-h-[500px]"
+                style={{ filter: post.filter && post.filter !== 'none' ? post.filter : '' }}
+              />
             </div>
           )}
           <div className="mt-3 flex items-center gap-6">
             <button
-              onClick={toggleLike}
+              onClick={handleLike}
               className={`flex items-center gap-1.5 text-xs transition-colors ${liked ? "text-destructive" : "text-muted-foreground hover:text-destructive"}`}
             >
               <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />

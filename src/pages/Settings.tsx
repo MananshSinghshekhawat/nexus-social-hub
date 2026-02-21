@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { User, Lock, Bell, Palette, Shield, Save, LogOut } from "lucide-react";
+import { User, Lock, Bell, Palette, Save, LogOut, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -22,17 +22,17 @@ import {
 type Tab = "profile" | "account" | "notifications" | "appearance";
 
 const Settings = () => {
-  const { user, profile, refreshProfile, signOut } = useAuth();
+  const { user, refreshProfile, logout } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const [activeTab, setActiveTab] = useState<Tab>("account");
   const [saving, setSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Profile form
-  const [displayName, setDisplayName] = useState(profile?.display_name || "");
-  const [bio, setBio] = useState(profile?.bio || "");
-  const [website, setWebsite] = useState(profile?.website || "");
-  const [username, setUsername] = useState(profile?.username || "");
+  const [displayName, setDisplayName] = useState(user?.display_name || "");
+  const [bio, setBio] = useState(user?.bio || "");
+  const [website, setWebsite] = useState(user?.website || "");
+  const [username, setUsername] = useState(user?.username || "");
 
   // Account form
   const [newPassword, setNewPassword] = useState("");
@@ -52,18 +52,19 @@ const Settings = () => {
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ display_name: displayName, bio, website, username })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await api.patch('/users/me', { display_name: displayName, bio, website, username });
       await refreshProfile();
       toast({ title: "Profile updated", description: "Your changes have been saved." });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update profile",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleChangePassword = async () => {
@@ -71,20 +72,43 @@ const Settings = () => {
       toast({ title: "Passwords don't match", variant: "destructive" });
       return;
     }
-    if (newPassword.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+    if (newPassword.length < 8) {
+      toast({ title: "Password must be at least 8 characters", variant: "destructive" });
       return;
     }
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await api.patch('/auth/update-password', { password: newPassword });
       toast({ title: "Password updated" });
       setNewPassword("");
       setConfirmPassword("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update password",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setSaving(true);
+    try {
+      await api.delete('/users/me');
+      toast({ title: "Account deleted" });
+      logout();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to delete account",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+      setShowDeleteDialog(false);
+    }
   };
 
   const toggleTheme = (mode: "dark" | "light") => {
@@ -97,7 +121,6 @@ const Settings = () => {
   };
 
   const tabs = [
-    { id: "profile" as Tab, label: "Profile", icon: User },
     { id: "account" as Tab, label: "Account", icon: Lock },
     { id: "notifications" as Tab, label: "Notifications", icon: Bell },
     { id: "appearance" as Tab, label: "Appearance", icon: Palette },
@@ -130,37 +153,6 @@ const Settings = () => {
           animate={{ opacity: 1, x: 0 }}
           className="flex-1 glass rounded-2xl p-6"
         >
-          {activeTab === "profile" && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-lg font-semibold font-display">Edit Profile</h2>
-                <p className="text-sm text-muted-foreground">Update your public information</p>
-              </div>
-              <Separator />
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <Label>Display Name</Label>
-                  <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Username</Label>
-                  <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bio</Label>
-                  <Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself" maxLength={160} rows={3} />
-                  <p className="text-xs text-muted-foreground">{bio.length}/160</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Website</Label>
-                  <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://yoursite.com" />
-                </div>
-              </div>
-              <Button onClick={handleSaveProfile} disabled={saving} className="gradient-primary text-primary-foreground">
-                <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          )}
 
           {activeTab === "account" && (
             <div className="space-y-5">
@@ -193,8 +185,11 @@ const Settings = () => {
               <div className="space-y-3">
                 <h3 className="font-medium text-sm text-destructive">Danger Zone</h3>
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={signOut} className="text-muted-foreground">
+                  <Button variant="outline" onClick={logout} className="text-muted-foreground">
                     <LogOut className="h-4 w-4 mr-2" /> Sign Out
+                  </Button>
+                  <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete Account
                   </Button>
                 </div>
               </div>
@@ -205,7 +200,7 @@ const Settings = () => {
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-semibold font-display">Notification Preferences</h2>
-                <p className="text-sm text-muted-foreground">Control what alerts you receive</p>
+                <p className="text-sm text-muted-foreground">Control what alerts you receive (Local Demo)</p>
               </div>
               <Separator />
               <div className="space-y-4">
@@ -272,6 +267,23 @@ const Settings = () => {
           )}
         </motion.div>
       </div>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+            <DialogDescription>
+              This action is permanent and cannot be undone. All your data will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={saving}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteAccount} disabled={saving}>
+              {saving ? "Deleting..." : "Permanently Delete Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
