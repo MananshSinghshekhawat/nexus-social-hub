@@ -36,7 +36,10 @@ const Messages = () => {
   const [selectedUser, setSelectedUser] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [convLoading, setConvLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +73,31 @@ const Messages = () => {
   useEffect(() => {
     fetchConversations();
   }, [user]);
+
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (!searchQuery.trim() || searchQuery.length < 2) {
+        setSearchResults([]);
+        return;
+      }
+      setSearching(true);
+      try {
+        const response = await api.get(`/users/search?q=${searchQuery}`);
+        // Filter out current user and users already in conversations
+        const filtered = response.data.filter((u: any) =>
+          u._id !== user?._id && !conversations.some(c => c.user_id === u._id)
+        );
+        setSearchResults(filtered);
+      } catch (error) {
+        console.error("Search failed:", error);
+      } finally {
+        setSearching(false);
+      }
+    };
+
+    const timeout = setTimeout(searchUsers, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, conversations, user?._id]);
 
   useEffect(() => {
     if (selectedUser) {
@@ -196,64 +224,124 @@ const Messages = () => {
   }
 
   return (
-    <div className="py-6 space-y-4">
-      <h1 className="text-2xl font-bold font-display">Messages</h1>
+    <div className="py-6 space-y-4 h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] flex flex-col">
+      <h1 className="text-2xl font-bold font-display px-1">Messages</h1>
 
-      {convLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-        </div>
-      ) : conversations.length === 0 ? (
-        <div className="text-center py-16 glass rounded-2xl border-dashed">
-          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-            <Send className="h-6 w-6 text-primary" />
+      <div className="relative px-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search users to chat..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 h-10 rounded-xl"
+        />
+      </div>
+
+      <ScrollArea className="flex-1">
+        {searching ? (
+          <div className="flex justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
           </div>
-          <p className="text-muted-foreground text-sm">No conversations yet</p>
-          <Button variant="link" className="text-primary mt-2">Start a conversation from a profile</Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {conversations.map((conv) => (
-            <button
-              key={conv.user_id}
-              onClick={() => setSelectedUser(conv)}
-              className="w-full glass rounded-xl p-3 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors group"
-            >
-              <div className="relative shrink-0">
-                <Avatar className="h-12 w-12 border border-primary/10 transition-transform group-hover:scale-105">
-                  <AvatarImage src={conv.avatar_url?.startsWith('http') ? conv.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${conv.avatar_url}`} />
-                  <AvatarFallback className="gradient-primary text-primary-foreground">
-                    {conv.display_name?.[0]?.toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                {isOnline(conv.user_id) && (
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+        ) : (
+          <div className="space-y-4">
+            {searchResults.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Global Search</h2>
+                {searchResults.map((u) => (
+                  <button
+                    key={u._id}
+                    onClick={() => {
+                      setSelectedUser({
+                        user_id: u._id,
+                        username: u.username,
+                        display_name: u.display_name,
+                        avatar_url: u.avatar_url,
+                        last_message: "",
+                        last_time: new Date().toISOString(),
+                        unread: 0
+                      });
+                      setSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="w-full glass rounded-xl p-3 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors group"
+                  >
+                    <Avatar className="h-10 w-10 border border-primary/10">
+                      <AvatarImage src={u.avatar_url?.startsWith('http') ? u.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${u.avatar_url}`} />
+                      <AvatarFallback className="gradient-primary text-primary-foreground text-xs">
+                        {u.display_name?.[0]?.toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{u.display_name || "User"}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">@{u.username}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {convLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              </div>
+            ) : conversations.length === 0 && searchResults.length === 0 && !searchQuery ? (
+              <div className="text-center py-16 glass rounded-2xl border-dashed">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                  <Send className="h-6 w-6 text-primary" />
+                </div>
+                <p className="text-muted-foreground text-sm">No conversations yet</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Search above to start a new chat!</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {conversations.length > 0 && !searchQuery && (
+                  <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Recent Chats</h2>
                 )}
+                {conversations.map((conv) => (
+                  <button
+                    key={conv.user_id}
+                    onClick={() => setSelectedUser(conv)}
+                    className="w-full glass rounded-xl p-3 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors group"
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar className="h-12 w-12 border border-primary/10 transition-transform group-hover:scale-105">
+                        <AvatarImage src={conv.avatar_url?.startsWith('http') ? conv.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${conv.avatar_url}`} />
+                        <AvatarFallback className="gradient-primary text-primary-foreground">
+                          {conv.display_name?.[0]?.toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOnline(conv.user_id) && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-semibold text-sm truncate">{conv.display_name || "User"}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {formatDistanceToNow(new Date(conv.last_time), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground truncate flex-1">{conv.last_message}</p>
+                        {conv.unread > 0 && (
+                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                    {conv.unread > 0 && (
+                      <span className="h-5 min-w-5 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground px-1.5 ml-2">
+                        {conv.unread}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-semibold text-sm truncate">{conv.display_name || "User"}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatDistanceToNow(new Date(conv.last_time), { addSuffix: true })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-muted-foreground truncate flex-1">{conv.last_message}</p>
-                  {conv.unread > 0 && (
-                    <span className="h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
-                  )}
-                </div>
-              </div>
-              {conv.unread > 0 && (
-                <span className="h-5 min-w-5 rounded-full gradient-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground px-1.5 ml-2">
-                  {conv.unread}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </ScrollArea>
     </div>
+
   );
 };
 

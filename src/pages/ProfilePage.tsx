@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { Edit3, Calendar, Globe, MessageCircle, Grid3X3 } from "lucide-react";
+import { Edit3, Calendar, Globe, MessageCircle, Grid3X3, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -38,6 +38,8 @@ const ProfilePage = () => {
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const { toast } = useToast();
 
   const isOwnProfile = user?._id === profile?._id;
@@ -98,14 +100,14 @@ const ProfilePage = () => {
       if (avatarFile) formData.append("avatar", avatarFile);
       if (coverFile) formData.append("cover", coverFile);
 
-      const response = await api.patch(`/users/me`, formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      const response = await api.patch(`/users/me`, formData);
 
       setProfile(response.data);
       setEditing(false);
       setAvatarFile(null);
       setCoverFile(null);
+      setAvatarPreview(null);
+      setCoverPreview(null);
       refreshProfile();
       toast({ title: "Profile updated" });
     } catch (error: any) {
@@ -180,27 +182,48 @@ const ProfilePage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl overflow-hidden"
       >
-        <div className="h-36 gradient-primary opacity-80 relative">
+        <div className="h-48 md:h-64 gradient-primary opacity-80 relative group">
           {profile.cover_url && (
             <img src={getImageUrl(profile.cover_url)} className="absolute inset-0 w-full h-full object-cover" alt="" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-card/40" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-card/60" />
+
+          {isOwnProfile && (
+            <button
+              onClick={() => setEditing(true)}
+              className="absolute right-4 bottom-4 glass p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95 z-20"
+              title="Change cover photo"
+            >
+              <Camera className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         <div className="px-6 pb-6">
           <div className="flex items-end gap-4 -mt-12 relative z-10">
-            <div className="h-24 w-24 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl font-display shadow-lg overflow-hidden">
-              {profile.avatar_url ? (
-                <img src={getImageUrl(profile.avatar_url)} className="h-full w-full object-cover" alt="" />
-              ) : (
-                profile.display_name?.[0]?.toUpperCase() || "U"
+            <div className="relative group/avatar">
+              <div className="h-24 w-24 md:h-32 md:w-32 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl md:text-4xl font-display shadow-lg overflow-hidden shrink-0">
+                {profile.avatar_url ? (
+                  <img src={getImageUrl(profile.avatar_url)} className="h-full w-full object-cover" alt="" />
+                ) : (
+                  profile.display_name?.[0]?.toUpperCase() || "U"
+                )}
+              </div>
+              {isOwnProfile && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity z-20"
+                  title="Change avatar"
+                >
+                  <Camera className="h-6 w-6 text-white" />
+                </button>
               )}
             </div>
-            <div className="flex-1 min-w-0 pt-14">
-              <h1 className="text-xl font-bold font-display">{profile.display_name || "User"}</h1>
-              <p className="text-sm text-muted-foreground">@{profile.username || "user"}</p>
+            <div className="flex-1 min-w-0 pt-14 md:pt-20">
+              <h1 className="text-xl md:text-2xl font-bold font-display">{profile.display_name || "User"}</h1>
+              <p className="text-sm md:text-base text-muted-foreground">@{profile.username || "user"}</p>
             </div>
-            <div className="flex gap-2 shrink-0 pt-14">
+            <div className="flex gap-2 shrink-0 pt-14 md:pt-20">
               {isOwnProfile ? (
                 <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                   <Edit3 className="h-3.5 w-3.5 mr-1.5" /> Edit Profile
@@ -274,37 +297,101 @@ const ProfilePage = () => {
       </div>
 
       <Dialog open={editing} onOpenChange={setEditing}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col sm:max-h-[85vh]">
           <DialogHeader>
             <DialogTitle>Edit Profile</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="overflow-y-auto space-y-5 pr-2 py-2 flex-1 scrollbar-thin">
+            <div className="grid gap-2">
               <Label>Avatar Image</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-              />
+              <div className="flex items-center gap-4">
+                <label className="relative cursor-pointer group rounded-full">
+                  <div className="h-16 w-16 rounded-full border overflow-hidden bg-muted flex items-center justify-center shrink-0 transition-opacity group-hover:opacity-80">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} className="h-full w-full object-cover" alt="Avatar preview" />
+                    ) : profile.avatar_url ? (
+                      <img src={getImageUrl(profile.avatar_url)} className="h-full w-full object-cover" alt="Current avatar" />
+                    ) : (
+                      <span className="text-xl font-bold">{profile.display_name?.[0]?.toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="h-5 w-5 text-white" />
+                  </div>
+                  <Input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setAvatarFile(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setAvatarPreview(reader.result as string);
+                        reader.readAsDataURL(file);
+                      } else {
+                        setAvatarPreview(null);
+                      }
+                    }}
+                  />
+                </label>
+                <div className="text-sm text-muted-foreground flex-1">
+                  Click the avatar to upload a new photo. Recommended size: 256x256px.
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2">
+              <Label>Banner/Cover Image</Label>
+              <label className="relative cursor-pointer group w-full block">
+                <div className="h-24 w-full rounded-lg border overflow-hidden bg-muted flex items-center justify-center transition-opacity group-hover:opacity-80">
+                  {coverPreview ? (
+                    <img src={coverPreview} className="h-full w-full object-cover" alt="Cover preview" />
+                  ) : profile.cover_url ? (
+                    <img src={getImageUrl(profile.cover_url)} className="h-full w-full object-cover" alt="Current cover" />
+                  ) : (
+                    <div className="w-full h-full gradient-primary opacity-50" />
+                  )}
+                </div>
+                <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="h-8 w-8 text-white" />
+                </div>
+                <Input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setCoverFile(file);
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => setCoverPreview(reader.result as string);
+                      reader.readAsDataURL(file);
+                    } else {
+                      setCoverPreview(null);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <div className="grid gap-2">
               <Label>Display Name</Label>
               <Input
                 value={editForm.display_name}
                 onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2">
               <Label>Bio</Label>
               <Textarea
                 value={editForm.bio}
                 onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                 maxLength={160}
                 rows={3}
+                className="resize-none"
               />
               <p className="text-xs text-muted-foreground">{editForm.bio.length}/160</p>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2 pb-2">
               <Label>Website</Label>
               <Input
                 value={editForm.website}
@@ -312,10 +399,10 @@ const ProfilePage = () => {
                 placeholder="https://yoursite.com"
               />
             </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button onClick={handleSaveProfile} className="gradient-primary text-primary-foreground">Save</Button>
-            </div>
+          </div>
+          <div className="flex gap-2 justify-end pt-4 border-t mt-auto">
+            <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button onClick={handleSaveProfile} className="gradient-primary text-primary-foreground">Save</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -332,7 +419,7 @@ const ProfilePage = () => {
         title="Following"
         list={followingList}
       />
-    </div>
+    </div >
   );
 };
 

@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['like', 'comment', 'follow', 'mention']
+        enum: ['like', 'comment', 'follow', 'mention', 'story', 'message']
     },
     post: { type: mongoose.Schema.Types.ObjectId, ref: 'Post' },
     read: { type: Boolean, default: false },

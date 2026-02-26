@@ -27,7 +27,7 @@ const getAllUsers = async (req, res) => {
 const getAllPosts = async (req, res) => {
     try {
         const posts = await Post.find()
-            .populate('user', 'username display_name')
+            .populate('user', 'username display_name avatar_url')
             .sort({ created_at: -1 })
             .limit(100);
         res.send(posts);
@@ -45,4 +45,23 @@ const deletePost = async (req, res) => {
     }
 };
 
-module.exports = { getStats, getAllUsers, getAllPosts, deletePost };
+const deleteUser = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+
+        // Ensure the admin isn't deleting themselves
+        if (userId === req.user._id.toString()) {
+            return res.status(400).send({ error: 'Cannot delete yourself.' });
+        }
+
+        await User.findByIdAndDelete(userId);
+        await Post.deleteMany({ user: userId });
+        await Comment.deleteMany({ user: userId });
+
+        res.send({ message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).send(error);
+    }
+};
+
+module.exports = { getStats, getAllUsers, getAllPosts, deletePost, deleteUser };

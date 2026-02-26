@@ -25,6 +25,14 @@ const toggleLike = async (req, res) => {
                     post: post._id
                 });
                 await notification.save();
+
+                // Emit real-time notification
+                const io = req.app.get('io');
+                io.to(post.user.toString()).emit('notification_received', {
+                    type: 'like',
+                    actor: req.user._id,
+                    post: post._id
+                });
             }
             res.status(201).send({ liked: true });
         }
@@ -52,6 +60,14 @@ const addComment = async (req, res) => {
                 post: post._id
             });
             await notification.save();
+
+            // Emit real-time notification
+            const io = req.app.get('io');
+            io.to(post.user.toString()).emit('notification_received', {
+                type: 'comment',
+                actor: req.user._id,
+                post: post._id
+            });
         }
         res.status(201).send(comment);
     } catch (error) {
@@ -81,6 +97,13 @@ const toggleFollow = async (req, res) => {
                 type: 'follow'
             });
             await notification.save();
+
+            // Emit real-time notification
+            const io = req.app.get('io');
+            io.to(targetUserId).emit('notification_received', {
+                type: 'follow',
+                actor: req.user._id
+            });
             res.status(201).send({ following: true });
         }
     } catch (error) {

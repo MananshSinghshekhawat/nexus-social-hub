@@ -1,6 +1,7 @@
 const Post = require('../models/Post');
 const multer = require('multer');
 const path = require('path');
+const { Worker } = require('worker_threads');
 
 // Multer setup
 const storage = multer.diskStorage({
@@ -42,7 +43,89 @@ const createPost = async (req, res) => {
             filter: req.body.filter || 'none'
         });
 
+        // If it's a video type, trigger the background HLS transcoder worker
+        const isVideoType = ['reel', 'shorts', 'video'].includes(post_type);
+        if (isVideoType && video_url) {
+            post.status = 'processing';
+            post.resolutions = ['360p', '720p', '1080p'];
+        }
+
         await post.save();
+
+        if (isVideoType && video_url) {
+            const absoluteInputPath = path.join(__dirname, '..', video_url); // Maps /uploads/...
+            const absoluteOutputDir = path.join(__dirname, '..', 'uploads', 'hls', post._id.toString());
+
+            const worker = new Worker(path.join(__dirname, '..', 'workers', 'hlsProcessor.js'), {
+                workerData: {
+                    inputPath: absoluteInputPath,
+                    outputDir: absoluteOutputDir,
+                    resolutions: post.resolutions
+                }
+            });
+
+            worker.on('message', async (message) => {
+                if (message.status === 'done') {
+                    // Update the DB with the master playlist URL
+                    post.hls_url = `/uploads/hls/${post._id.toString()}/${message.masterUrl}`;
+                    post.status = 'ready';
+                    await post.save();
+                    console.log(`[HLS] Post ${post._id} finished transcoding.`);
+
+                    // Optionally, broadcast readiness via Socket.io to the uploader
+                    const io = req.app.get('io');
+                    if (io) {
+                        io.to(req.user._id.toString()).emit('post_ready', { postId: post._id });
+                    }
+                } else {
+                    console.error(`[HLS] Processing error for Post ${post._id}:`, message.error);
+                    post.status = 'failed';
+                    await post.save();
+                }
+            });
+
+            worker.on('error', async (error) => {
+                console.error(`[HLS] Worker thread crashed for Post ${post._id}:`, error);
+                post.status = 'failed';
+                await post.save();
+            });
+
+            worker.on('exit', (code) => {
+                if (code !== 0) console.error(`[HLS] Worker stopped with exit code ${code}`);
+            });
+        }
+
+        // Story notifications for followers
+        if (post_type === 'story') {
+            const Follow = require('../models/Follow');
+            const Notification = require('../models/Notification');
+            const followers = await Follow.find({ following: req.user._id });
+
+            const io = req.app.get('io');
+            for (const f of followers) {
+                const notification = new Notification({
+                    user: f.follower,
+                    actor: req.user._id,
+                    type: 'story',
+                    post: post._id
+                });
+                await notification.save();
+
+                if (io) {
+                    io.to(f.follower.toString()).emit('notification_received', {
+                        type: 'story',
+                        actor: {
+                            _id: req.user._id,
+                            username: req.user.username,
+                            display_name: req.user.display_name,
+                            avatar_url: req.user.avatar_url
+                        },
+                        post: post._id
+                    });
+                }
+            }
+        }
+
         res.status(201).send(post);
     } catch (error) {
         res.status(400).send(error);

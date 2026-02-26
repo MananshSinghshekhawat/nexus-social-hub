@@ -41,6 +41,8 @@ const Notifications = () => {
     try {
       await api.patch('/notifications/read');
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      // Dispatch event to update AppLayout badge immediately
+      window.dispatchEvent(new Event('notificationsRead'));
     } catch (error) {
       console.error("Error marking all read:", error);
     }
@@ -75,6 +77,8 @@ const Notifications = () => {
     follow: <UserPlus className="h-4 w-4 text-primary" />,
     comment: <MessageCircle className="h-4 w-4 text-accent" />,
     mention: <AtSign className="h-4 w-4 text-primary" />,
+    story: <Bell className="h-4 w-4 text-amber-500" />,
+    message: <MessageCircle className="h-4 w-4 text-green-500" />,
   };
 
   const messageMap: Record<string, string> = {
@@ -82,6 +86,8 @@ const Notifications = () => {
     follow: "started following you",
     comment: "commented on your post",
     mention: "mentioned you",
+    story: "posted a new story",
+    message: "sent you a message",
   };
 
   return (

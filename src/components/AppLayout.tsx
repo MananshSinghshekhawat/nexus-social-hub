@@ -4,6 +4,7 @@ import { Home, Search, Bell, MessageCircle, User, LogOut, Zap, PlusCircle, Shiel
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { VideoEditorDialog } from "@/components/VideoEditorDialog";
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { logout, user } = useAuth();
@@ -30,9 +31,16 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     checkAdmin();
     fetchUnread();
 
+    const handleNotificationsRead = () => setUnreadNotifications(0);
+    window.addEventListener('notificationsRead', handleNotificationsRead);
+
     // Refresh interval for badges (could also use sockets)
     const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notificationsRead', handleNotificationsRead);
+    };
   }, [user]);
 
   const navItems = [
@@ -171,6 +179,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           );
         })}
       </nav>
+
+      <VideoEditorDialog />
     </div>
   );
 };

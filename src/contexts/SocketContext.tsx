@@ -27,6 +27,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             setSocket(newSocket);
 
+            newSocket.emit('join', user._id);
+
             newSocket.on('getOnlineUsers', (users: string[]) => {
                 setOnlineUsers(users);
             });

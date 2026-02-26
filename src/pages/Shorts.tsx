@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Heart, MessageCircle, Share2, Play, UserPlus, Zap, PlusCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useEditorStore } from "@/store/useEditorStore";
+import { VirtualFeedContainer } from "@/components/hls-feed/VirtualFeedContainer";
 
 interface Short {
     _id: string;
@@ -23,7 +26,9 @@ interface Short {
 const Shorts = () => {
     const [shorts, setShorts] = useState<Short[]>([]);
     const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
     const navigate = useNavigate();
+    const { setIsOpen } = useEditorStore();
 
     useEffect(() => {
         const fetchShorts = async () => {
@@ -37,7 +42,7 @@ const Shorts = () => {
             }
         };
         fetchShorts();
-    }, []);
+    }, [user?._id]);
 
     const getImageUrl = (path: string | undefined) => {
         if (!path) return "";
@@ -60,7 +65,7 @@ const Shorts = () => {
 
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => navigate("/create?type=shorts")}
+                        onClick={() => setIsOpen(true, 'shorts')}
                         className="bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-6 rounded-2xl shadow-xl flex items-center gap-2 transform transition-all active:scale-95 group"
                     >
                         <PlusCircle className="h-4 w-4 group-hover:rotate-90 transition-transform" />
@@ -70,61 +75,18 @@ const Shorts = () => {
             </div>
 
             {loading ? (
-                <div className="flex justify-center py-20">
+                <div className="flex justify-center py-20 h-full items-center bg-black">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
                 </div>
             ) : shorts.length === 0 ? (
-                <div className="glass rounded-3xl p-20 flex flex-col items-center justify-center text-muted-foreground text-center">
+                <div className="glass rounded-3xl p-20 flex flex-col items-center justify-center text-muted-foreground text-center bg-black h-[50vh]">
                     <Play className="h-12 w-12 mb-4 opacity-20" />
                     <p className="text-lg font-medium">No shorts found</p>
                     <p className="text-sm">Be the first to create one!</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {shorts.map((short) => (
-                        <motion.div
-                            key={short._id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="group relative aspect-[9/16] rounded-2xl overflow-hidden bg-black cursor-pointer shadow-xl"
-                        >
-                            <video
-                                src={getImageUrl(short.video_url)}
-                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                muted
-                                onMouseEnter={(e) => e.currentTarget.play()}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.pause();
-                                    e.currentTarget.currentTime = 0;
-                                }}
-                            />
-
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-4 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Avatar className="h-8 w-8 border border-white/20">
-                                        <AvatarImage src={getImageUrl(short.user.avatar_url)} />
-                                        <AvatarFallback>{short.user.display_name[0]}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="text-white text-xs font-bold">@{short.user.username}</span>
-                                </div>
-                                <p className="text-white text-xs line-clamp-2 mb-4">{short.content}</p>
-                                <div className="flex items-center gap-4 text-white">
-                                    <div className="flex items-center gap-1.5">
-                                        <Heart className="h-4 w-4 fill-white text-white" />
-                                        <span className="text-[10px] font-bold">{short.likes_count || 0}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <MessageCircle className="h-4 w-4 fill-white text-white" />
-                                        <span className="text-[10px] font-bold">{short.comments_count || 0}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="absolute top-3 right-3 p-1.5 bg-black/40 backdrop-blur-md rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Play className="h-3 w-3 fill-current" />
-                            </div>
-                        </motion.div>
-                    ))}
+                <div className="-mx-4 sm:mx-0">
+                    <VirtualFeedContainer posts={shorts} />
                 </div>
             )}
         </div>

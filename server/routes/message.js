@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { sendMessage, getMessages, markAsRead } = require('../controllers/messageController');
+const { getConversations, getMessages, sendMessage, markAsRead } = require('../controllers/messageController');
 
-router.post('/', auth, sendMessage);
-router.get('/:userId', auth, getMessages);
+router.get('/conversations', auth, getConversations);
+router.get('/messages/:otherUserId', auth, getMessages);
+router.post('/messages', auth, sendMessage);
 router.patch('/read/:userId', auth, markAsRead);
 
 module.exports = router;

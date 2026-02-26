@@ -18,8 +18,17 @@ const io = new Server(server, {
     }
 });
 
+app.set('io', io);
+
 app.use(cors());
 app.use(express.json());
+
+// Add headers to allow media resources to be embedded in the strictly isolated frontend
+app.use((req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+});
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Request logging middleware
@@ -43,7 +52,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/social', socialRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/messages', notificationRoutes);
+app.use('/api/messages', require('./routes/message'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Socket.io connection logic
