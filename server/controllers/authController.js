@@ -58,11 +58,6 @@ const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
 
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.error('SERVER ERROR: Email credentials missing in .env');
-            return res.status(500).send({ error: 'Server email configuration is missing. Please contact admin.' });
-        }
-
         const user = await User.findOne({ email });
 
         if (!user) {
@@ -75,6 +70,17 @@ const forgotPassword = async (req, res) => {
         user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
         await user.save();
 
+        const resetUrl = `${req.get('origin')}/reset-password/${token}`;
+
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            console.log('\n======================================================');
+            console.log(' DEVELOPMENT MODE: EMAIL CREDENTIALS NOT CONFIGURED');
+            console.log(` Password reset link for ${user.email}:`);
+            console.log(` ${resetUrl}`);
+            console.log('======================================================\n');
+            return res.send({ message: 'Development mode: Password reset link has been logged to the server console.' });
+        }
+
         // Send email
         const transporter = nodemailer.createTransport({
             service: 'gmail', // You can change this or use SMTP
@@ -83,8 +89,6 @@ const forgotPassword = async (req, res) => {
                 pass: process.env.EMAIL_PASS
             }
         });
-
-        const resetUrl = `${req.get('origin')}/reset-password/${token}`;
 
         const mailOptions = {
             to: user.email,

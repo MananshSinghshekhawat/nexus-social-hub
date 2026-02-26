@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { User, Lock, Bell, Palette, Save, LogOut, Trash2 } from "lucide-react";
+import { User, Lock, Bell, Palette, Save, LogOut, Trash2, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ type Tab = "profile" | "account" | "notifications" | "appearance";
 const Settings = () => {
   const { user, refreshProfile, logout } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("account");
   const [saving, setSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -144,6 +146,16 @@ const Settings = () => {
               {label}
             </button>
           ))}
+
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-all text-muted-foreground hover:bg-destructive/10 hover:text-destructive mt-4"
+            >
+              <Shield className="h-4 w-4" />
+              Admin Dashboard
+            </button>
+          )}
         </nav>
 
         {/* Content */}

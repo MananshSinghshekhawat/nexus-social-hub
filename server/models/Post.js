@@ -13,6 +13,21 @@ const postSchema = new mongoose.Schema({
         default: 'text'
     },
     filter: { type: String, default: 'none' },
+    hls_url: { type: String },
+    status: {
+        type: String,
+        enum: ['processing', 'ready', 'failed'],
+        default: 'ready'
+    },
+    resolutions: [{ type: String }],
+    media_metadata: {
+        beat_markers: [{ type: Number }],
+        ai_captions: [{
+            text: { type: String },
+            start: { type: Number },
+            end: { type: Number }
+        }]
+    },
     likes_count: { type: Number, default: 0 },
     comments_count: { type: Number, default: 0 },
     expires_at: { type: Date }, // For stories

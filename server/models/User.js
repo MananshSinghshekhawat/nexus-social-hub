@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
     avatar_url: { type: String, default: '' },
     cover_url: { type: String, default: '' },
     website: { type: String, default: '' },
-    roles: { type: [String], enum: ['admin', 'moderator', 'user'], default: ['user'] },
+    role: { type: String, enum: ['admin', 'moderator', 'user'], default: 'user' },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     created_at: { type: Date, default: Date.now },

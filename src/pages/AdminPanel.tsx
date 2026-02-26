@@ -29,8 +29,10 @@ interface UserRow {
 
 interface PostRow {
   _id: string;
-  user: { _id: string; display_name: string; username: string };
+  user: { _id: string; display_name: string; username: string; avatar_url?: string };
   content: string | null;
+  image_url?: string;
+  video_url?: string;
   post_type: string;
   likes_count: number;
   comments_count: number;
@@ -48,9 +50,17 @@ const AdminPanel = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalUsers: 0, totalPosts: 0, totalComments: 0 });
 
+  // Only consider 'admin' explicitly. If not, bounce out immediately.
   const isAdmin = user?.role === "admin";
+
+  const getMediaUrl = (path: string | undefined) => {
+    if (!path) return "";
+    if (path.startsWith('http')) return path;
+    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${path}`;
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -63,9 +73,13 @@ const AdminPanel = () => {
       setStats(statsRes.data);
       setUsers(usersRes.data);
       setPosts(postsRes.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch admin data", error);
-      toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
+      if (error.response?.status === 403 || error.response?.status === 401) {
+        toast({ title: "Access Denied", description: "You are not an admin", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -86,6 +100,20 @@ const AdminPanel = () => {
       toast({ title: "Error", description: "Failed to delete post", variant: "destructive" });
     } finally {
       setDeletePostId(null);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return;
+    try {
+      await api.delete(`/admin/users/${deleteUserId}`);
+      toast({ title: "User banned and removed" });
+      setUsers((prev) => prev.filter((u) => u._id !== deleteUserId));
+      setStats((prev) => ({ ...prev, totalUsers: prev.totalUsers - 1 }));
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete user", variant: "destructive" });
+    } finally {
+      setDeleteUserId(null);
     }
   };
 
@@ -174,7 +202,7 @@ const AdminPanel = () => {
             >
               <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0 overflow-hidden">
                 {u.avatar_url ? (
-                  <img src={u.avatar_url} className="h-full w-full object-cover" alt="" />
+                  <img src={getMediaUrl(u.avatar_url)} className="h-full w-full object-cover" alt="" />
                 ) : (
                   u.display_name?.[0]?.toUpperCase() || "U"
                 )}
@@ -183,6 +211,9 @@ const AdminPanel = () => {
                 <p className="font-semibold text-sm">{u.display_name || "Unnamed"}</p>
                 <p className="text-xs text-muted-foreground">@{u.username || "user"} · Joined {formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}</p>
               </div>
+              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeleteUserId(u._id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </motion.div>
           ))}
           {filteredUsers.length === 0 && (
@@ -199,17 +230,45 @@ const AdminPanel = () => {
               className="glass rounded-xl p-4"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
+
+                {/* User Avatar & Media Thumbnail left side */}
+                <div className="flex gap-3 items-center shrink-0">
+                  <div className="h-10 w-10 rounded-full bg-muted overflow-hidden shrink-0">
+                    {p.user?.avatar_url ? (
+                      <img src={getMediaUrl(p.user.avatar_url)} className="h-full w-full object-cover" alt="Avatar" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-bold text-sm">
+                        {p.user?.display_name?.[0]?.toUpperCase() || "U"}
+                      </div>
+                    )}
+                  </div>
+
+                  {(p.image_url || p.video_url) && (
+                    <div className="h-16 w-16 md:h-20 md:w-20 rounded-lg overflow-hidden bg-black shrink-0 relative">
+                      {p.video_url ? (
+                        <video src={getMediaUrl(p.video_url)} className="h-full w-full object-cover opacity-80" />
+                      ) : (
+                        <img src={getMediaUrl(p.image_url)} className="h-full w-full object-cover" alt="Post media" />
+                      )}
+                      <div className="absolute top-1 right-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-md font-medium uppercase">
+                        {p.post_type}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
                   <p className="text-xs text-muted-foreground mb-1">
-                    {p.user?.display_name || "Unknown"} · {formatDistanceToNow(new Date(p.created_at), { addSuffix: true })}
+                    <strong className="text-foreground">{p.user?.display_name || "Unknown"}</strong> · {formatDistanceToNow(new Date(p.created_at), { addSuffix: true })}
                   </p>
-                  <p className="text-sm line-clamp-2">{p.content || "(No text content)"}</p>
+                  <p className="text-sm line-clamp-2">{p.content || <span className="text-muted-foreground italic">No text content</span>}</p>
                   <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
                     <span>❤️ {p.likes_count}</span>
                     <span>💬 {p.comments_count}</span>
-                    <span className="capitalize">{p.post_type}</span>
+                    {!p.image_url && !p.video_url && <span className="capitalize">{p.post_type}</span>}
                   </div>
                 </div>
+
                 <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeletePostId(p._id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -222,7 +281,7 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* Delete confirmation */}
+      {/* Delete Post confirmation */}
       <Dialog open={!!deletePostId} onOpenChange={() => setDeletePostId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -232,6 +291,20 @@ const AdminPanel = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletePostId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeletePost}>Delete Post</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User confirmation */}
+      <Dialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ban / Delete User</DialogTitle>
+            <DialogDescription>This will permanently delete this user, their posts, and all their data. This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteUser}>Delete User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

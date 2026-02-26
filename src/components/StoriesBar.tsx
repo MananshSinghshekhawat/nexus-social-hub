@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import StoryViewer from "./StoryViewer";
 
 interface Story {
     _id: string;
@@ -23,6 +24,7 @@ const StoriesBar = () => {
     const [stories, setStories] = useState<Story[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [selectedStory, setSelectedStory] = useState<Story | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
@@ -131,6 +133,7 @@ const StoriesBar = () => {
                             key={story._id}
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
+                            onClick={() => setSelectedStory(story)}
                             className="flex flex-col items-center gap-2 shrink-0 cursor-pointer group"
                         >
                             <div className="h-16 w-16 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 group-hover:rotate-12 transition-transform shadow-lg shadow-rose-500/10">
@@ -156,6 +159,12 @@ const StoriesBar = () => {
                 </div>
                 <ScrollBar orientation="horizontal" className="invisible" />
             </ScrollArea>
+
+            {/* Story Viewer Modal */}
+            <StoryViewer
+                story={selectedStory}
+                onClose={() => setSelectedStory(null)}
+            />
         </div>
     );
 };

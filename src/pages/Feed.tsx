@@ -3,6 +3,7 @@ import StoriesBar from "@/components/StoriesBar";
 import PostCard from "@/components/PostCard";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Music2 } from "lucide-react";
 
 interface Post {
@@ -25,6 +26,7 @@ interface Post {
 const Feed = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const fetchPosts = async () => {
@@ -46,7 +48,7 @@ const Feed = () => {
 
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [user?._id]);
 
   if (loading && posts.length === 0) {
     return (
