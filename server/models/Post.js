@@ -31,6 +31,10 @@ const postSchema = new mongoose.Schema({
     likes_count: { type: Number, default: 0 },
     comments_count: { type: Number, default: 0 },
     expires_at: { type: Date }, // For stories
+    story_views: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        viewed_at: { type: Date, default: Date.now }
+    }],
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
