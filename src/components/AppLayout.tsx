@@ -54,6 +54,14 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/settings", icon: Settings, label: "Settings" },
   ];
 
+  const mobileBottomItems = [
+    { to: "/", icon: Home },
+    { to: "/explore", icon: Search },
+    { to: "/create", icon: PlusCircle },
+    { to: "/messages", icon: MessageCircle, badge: unreadNotifications },
+    { to: `/profile/${user?.username || user?._id}`, icon: User },
+  ];
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
@@ -145,27 +153,53 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </aside>
 
+      {/* Mobile top header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-14 flex items-center justify-between px-4 border-b border-border bg-card/90 backdrop-blur-xl z-50">
+        <div className="flex items-center gap-2">
+          <Zap className="h-6 w-6 text-primary" />
+          <span className="text-lg font-bold font-display gradient-text">Nexus Logic</span>
+        </div>
+        <div className="flex items-center gap-4 text-muted-foreground">
+          {isAdmin && (
+            <NavLink to="/admin" className={({ isActive }) => `transition-colors ${isActive ? "text-destructive" : "hover:text-foreground"}`}>
+              <Shield className="h-5 w-5" />
+            </NavLink>
+          )}
+          <NavLink to="/notifications" className={({ isActive }) => `relative transition-colors ${isActive ? "text-primary" : "hover:text-foreground"}`}>
+            <Bell className="h-5 w-5" />
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full gradient-primary text-[9px] font-bold text-primary-foreground px-0.5">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
+          </NavLink>
+          <NavLink to="/settings" className={({ isActive }) => `transition-colors ${isActive ? "text-primary" : "hover:text-foreground"}`}>
+            <Settings className="h-5 w-5" />
+          </NavLink>
+        </div>
+      </header>
+
       {/* Main content */}
-      <main className="flex-1 md:ml-64">
+      <main className="flex-1 md:ml-64 pt-14 md:pt-0">
         <div className="mx-auto max-w-2xl px-4 pb-20 md:pb-4">
           {children}
         </div>
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/90 backdrop-blur-xl">
-        {navItems.map(({ to, icon: Icon, badge }) => {
-          const isActive = location.pathname === to || (to !== "/" && location.pathname.startsWith(to));
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/90 backdrop-blur-xl h-14">
+        {mobileBottomItems.map(({ to, icon: Icon, badge }) => {
+          const isActive = location.pathname === to || (to !== "/" && to !== "/create" && location.pathname.startsWith(to));
           return (
             <NavLink
               key={to}
               to={to}
-              className={`flex flex-1 flex-col items-center justify-center py-3 relative transition-colors
+              className={`flex flex-1 flex-col items-center justify-center relative transition-colors
                 ${isActive ? "text-primary" : "text-muted-foreground"}`}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-[22px] w-[22px]" />
               {badge ? (
-                <span className="absolute top-1 right-1/4 flex h-4 min-w-4 items-center justify-center rounded-full gradient-primary text-[9px] font-bold text-primary-foreground px-0.5">
+                <span className="absolute top-2 right-1/4 flex h-4 min-w-4 items-center justify-center rounded-full gradient-primary text-[9px] font-bold text-primary-foreground px-0.5">
                   {badge > 99 ? "99+" : badge}
                 </span>
               ) : null}

@@ -151,7 +151,7 @@ const AdminPanel = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { label: "Users", value: stats.totalUsers, icon: Users },
           { label: "Posts", value: stats.totalPosts, icon: FileText },
@@ -171,17 +171,17 @@ const AdminPanel = () => {
       </div>
 
       {/* Tabs + Search */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex gap-1">
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex gap-1 w-full md:w-auto">
           <button
             onClick={() => setTab("users")}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "users" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "users" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
           >
             <Users className="h-4 w-4 inline mr-1.5" /> Users
           </button>
           <button
             onClick={() => setTab("content")}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "content" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "content" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
           >
             <FileText className="h-4 w-4 inline mr-1.5" /> Content
           </button>
@@ -250,13 +250,13 @@ const AdminPanel = () => {
                   </div>
 
                   {(p.image_url || p.video_url) && (
-                    <div className="h-16 w-16 md:h-20 md:w-20 rounded-lg overflow-hidden bg-black shrink-0 relative">
+                    <div className="h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20 rounded-lg overflow-hidden bg-black shrink-0 relative">
                       {p.video_url ? (
                         <video src={getMediaUrl(p.video_url)} className="h-full w-full object-cover opacity-80" />
                       ) : (
                         <img src={getMediaUrl(p.image_url)} className="h-full w-full object-cover" alt="Post media" />
                       )}
-                      <div className="absolute top-1 right-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-md font-medium uppercase">
+                      <div className="absolute top-1 right-1 bg-black/50 text-white text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded backdrop-blur-md font-medium uppercase">
                         {p.post_type}
                       </div>
                     </div>
@@ -334,7 +334,7 @@ const AdminPanel = () => {
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-3 text-sm">
+              <div className="grid grid-cols-[70px_1fr] sm:grid-cols-[100px_1fr] gap-x-2 gap-y-3 text-sm">
                 <span className="font-semibold text-muted-foreground">ID:</span>
                 <span className="break-all font-mono">{selectedUser._id}</span>
                 
