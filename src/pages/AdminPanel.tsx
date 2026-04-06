@@ -22,6 +22,10 @@ interface UserRow {
   _id: string;
   username: string | null;
   display_name: string | null;
+  email: string | null;
+  password: string | null;
+  role: string | null;
+  website: string | null;
   bio: string | null;
   avatar_url?: string;
   created_at: string;
@@ -51,6 +55,7 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [stats, setStats] = useState({ totalUsers: 0, totalPosts: 0, totalComments: 0 });
 
   // Only consider 'admin' explicitly. If not, bounce out immediately.
@@ -198,7 +203,8 @@ const AdminPanel = () => {
               key={u._id}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="glass rounded-xl p-4 flex items-center gap-3"
+              className="glass rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => setSelectedUser(u)}
             >
               <div className="h-10 w-10 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0 overflow-hidden">
                 {u.avatar_url ? (
@@ -211,7 +217,7 @@ const AdminPanel = () => {
                 <p className="font-semibold text-sm">{u.display_name || "Unnamed"}</p>
                 <p className="text-xs text-muted-foreground">@{u.username || "user"} · Joined {formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}</p>
               </div>
-              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeleteUserId(u._id)}>
+              <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={(e) => { e.stopPropagation(); setDeleteUserId(u._id); }}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </motion.div>
@@ -305,6 +311,72 @@ const AdminPanel = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteUserId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeleteUser}>Delete User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Details Dialog */}
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="flex justify-center mb-4">
+                <div className="h-20 w-20 rounded-full bg-muted overflow-hidden">
+                  {selectedUser.avatar_url ? (
+                    <img src={getMediaUrl(selectedUser.avatar_url)} className="h-full w-full object-cover" alt="Avatar" />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary font-bold text-2xl">
+                      {selectedUser.display_name?.[0]?.toUpperCase() || "U"}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-3 text-sm">
+                <span className="font-semibold text-muted-foreground">ID:</span>
+                <span className="break-all font-mono">{selectedUser._id}</span>
+                
+                <span className="font-semibold text-muted-foreground">Name:</span>
+                <span>{selectedUser.display_name || "N/A"}</span>
+                
+                <span className="font-semibold text-muted-foreground">Username:</span>
+                <span>@{selectedUser.username}</span>
+
+                <span className="font-semibold text-muted-foreground">Email:</span>
+                <span className="break-all">{selectedUser.email || "N/A"}</span>
+
+                <span className="font-semibold text-muted-foreground">Role:</span>
+                <span className="capitalize">{selectedUser.role || "user"}</span>
+
+                <span className="font-semibold text-muted-foreground mt-1">Password:</span>
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground mb-1">(Hashed)</span>
+                  <span className="font-mono text-[10px] break-all bg-muted p-1.5 rounded">{selectedUser.password || "N/A"}</span>
+                </div>
+
+                <span className="font-semibold text-muted-foreground">Bio:</span>
+                <span>{selectedUser.bio || "N/A"}</span>
+
+                <span className="font-semibold text-muted-foreground">Website:</span>
+                <span className="break-all">
+                  {selectedUser.website ? (
+                    <a href={selectedUser.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      {selectedUser.website}
+                    </a>
+                  ) : (
+                    "N/A"
+                  )}
+                </span>
+
+                <span className="font-semibold text-muted-foreground">Joined:</span>
+                <span>{new Date(selectedUser.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedUser(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

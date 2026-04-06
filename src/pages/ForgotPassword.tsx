@@ -20,9 +20,25 @@ const ForgotPassword = () => {
         setLoading(true);
 
         try {
-            await api.post('/auth/forgot-password', { email });
+            const response = await api.post('/auth/forgot-password', { email });
             setSent(true);
-            toast({ title: "Email sent", description: "Please check your inbox for instructions." });
+            
+            if (response.data.previewUrl) {
+                toast({ 
+                    title: "Email Sent (Dev Mode)", 
+                    description: (
+                        <div className="flex flex-col gap-2 mt-1">
+                            <span>We used Ethereal Mail for testing.</span>
+                            <a href={response.data.previewUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                                Click here to view the email
+                            </a>
+                        </div>
+                    ),
+                    duration: 15000
+                });
+            } else {
+                toast({ title: "Email sent", description: "Please check your inbox for instructions." });
+            }
         } catch (error: any) {
             toast({
                 title: "Error",
