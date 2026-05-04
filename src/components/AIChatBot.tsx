@@ -31,11 +31,22 @@ export default function AIChatBot() {
     setInput("");
     setIsLoading(true);
 
+    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+    
+    if (!apiKey) {
+      setMessages(prev => [...prev, { 
+        role: "assistant", 
+        content: "Configuration Error: The AI API key is missing. If you are on Vercel, please add `VITE_OPENROUTER_API_KEY` to your Vercel Environment Variables. If you are testing locally, make sure your `.env` file is created and you have restarted the dev server." 
+      }]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": window.location.origin,
           "X-Title": "Nexus Social Hub",
