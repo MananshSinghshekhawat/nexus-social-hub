@@ -43,6 +43,11 @@ const createPost = async (req, res) => {
             filter: req.body.filter || 'none'
         });
 
+        // Track 24h expiration for stories
+        if (post_type === 'story') {
+            post.expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        }
+
         // If it's a video type, trigger the background HLS transcoder worker
         const isVideoType = ['reel', 'shorts', 'video'].includes(post_type);
         if (isVideoType && video_url) {
@@ -139,6 +144,9 @@ const getPosts = async (req, res) => {
         if (userId) query.user = userId;
         if (type) {
             query.post_type = type;
+            if (type === 'story') {
+                query.expires_at = { $gt: new Date() };
+            }
         } else {
             // Exclude stories from main feed
             query.post_type = { $ne: 'story' };
@@ -179,4 +187,25 @@ const deletePost = async (req, res) => {
     }
 };
 
-module.exports = { createPost, getPosts, getPostById, deletePost, upload };
+const viewStory = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) return res.status(404).send({ error: 'Story not found' });
+
+        if (post.post_type !== 'story') {
+            return res.status(400).send({ error: 'Post is not a story' });
+        }
+
+        const alreadyViewed = post.story_views.some(v => v.user.toString() === req.user._id.toString());
+        if (!alreadyViewed && post.user.toString() !== req.user._id.toString()) {
+            post.story_views.push({ user: req.user._id });
+            await post.save();
+        }
+
+        res.send(post);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+};
+
+module.exports = { createPost, getPosts, getPostById, deletePost, upload, viewStory };

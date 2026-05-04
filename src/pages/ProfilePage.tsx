@@ -200,9 +200,9 @@ const ProfilePage = () => {
         </div>
 
         <div className="px-6 pb-6">
-          <div className="flex items-end gap-4 -mt-12 relative z-10">
-            <div className="relative group/avatar">
-              <div className="h-24 w-24 md:h-32 md:w-32 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl md:text-4xl font-display shadow-lg overflow-hidden shrink-0">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 -mt-12 sm:-mt-16 md:-mt-12 relative z-10 text-center sm:text-left">
+            <div className="relative group/avatar shrink-0 z-20">
+              <div className="h-24 w-24 md:h-32 md:w-32 rounded-full border-4 border-card gradient-accent flex items-center justify-center text-accent-foreground font-bold text-3xl md:text-4xl font-display shadow-lg overflow-hidden">
                 {profile.avatar_url ? (
                   <img src={getImageUrl(profile.avatar_url)} className="h-full w-full object-cover" alt="" />
                 ) : (
@@ -219,21 +219,23 @@ const ProfilePage = () => {
                 </button>
               )}
             </div>
-            <div className="flex-1 min-w-0 pt-14 md:pt-20">
-              <h1 className="text-xl md:text-2xl font-bold font-display">{profile.display_name || "User"}</h1>
-              <p className="text-sm md:text-base text-muted-foreground">@{profile.username || "user"}</p>
+            <div className="flex-1 min-w-0 pt-2 sm:pt-16 md:pt-20 w-full">
+              <h1 className="text-xl md:text-2xl font-bold font-display truncate">{profile.display_name || "User"}</h1>
+              <p className="text-sm md:text-base text-muted-foreground truncate">@{profile.username || "user"}</p>
             </div>
-            <div className="flex gap-2 shrink-0 pt-14 md:pt-20">
+            <div className="flex justify-center sm:justify-end gap-2 shrink-0 pt-1 sm:pt-16 md:pt-20 w-full sm:w-auto mt-2 sm:mt-0">
               {isOwnProfile ? (
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="w-full sm:w-auto">
                   <Edit3 className="h-3.5 w-3.5 mr-1.5" /> Edit Profile
                 </Button>
               ) : (
                 <>
-                  <FollowButton
-                    targetUserId={profile._id}
-                    onFollowChange={(following) => setFollowersCount((c) => following ? c + 1 : c - 1)}
-                  />
+                  <div className="flex-1 sm:flex-none">
+                    <FollowButton
+                      targetUserId={profile._id}
+                      onFollowChange={(following) => setFollowersCount((c) => following ? c + 1 : c - 1)}
+                    />
+                  </div>
                   <Button variant="outline" size="sm" onClick={handleMessage}>
                     <MessageCircle className="h-3.5 w-3.5" />
                   </Button>
@@ -242,9 +244,9 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          {profile.bio && <p className="mt-4 text-sm leading-relaxed">{profile.bio}</p>}
+          {profile.bio && <p className="mt-4 text-sm leading-relaxed text-center sm:text-left px-2 sm:px-0">{profile.bio}</p>}
 
-          <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+          <div className="mt-4 flex flex-wrap justify-center sm:justify-start items-center gap-4 text-sm px-2 sm:px-0">
             {profile.website && (
               <a href={profile.website.startsWith("http") ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline text-xs">
                 <Globe className="h-3.5 w-3.5" /> {profile.website.replace(/^https?:\/\//, "")}
@@ -256,7 +258,7 @@ const ProfilePage = () => {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-6 text-sm">
+          <div className="mt-5 flex items-center justify-center sm:justify-start gap-6 text-sm px-2 sm:px-0 bg-muted/30 sm:bg-transparent py-3 sm:py-0 rounded-xl sm:rounded-none">
             <button onClick={() => setShowFollowers(true)} className="hover:underline transition-colors">
               <span className="font-bold">{followersCount}</span>
               <span className="text-muted-foreground ml-1">Followers</span>

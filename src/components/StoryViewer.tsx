@@ -1,5 +1,9 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Heart, MessageCircle, Send, Eye } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Story {
     _id: string;
@@ -11,6 +15,7 @@ interface Story {
     };
     image_url?: string;
     video_url?: string;
+    story_views?: Array<{ user: string; viewed_at: string }>;
 }
 
 interface StoryViewerProps {
@@ -19,7 +24,23 @@ interface StoryViewerProps {
 }
 
 const StoryViewer = ({ story, onClose }: StoryViewerProps) => {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [replyText, setReplyText] = useState("");
+    const [viewsCount, setViewsCount] = useState(story?.story_views?.length || 0);
+
     if (!story) return null;
+
+    useEffect(() => {
+        if (!story || !user) return;
+
+        // Record view if not the author
+        if (story.user._id !== user._id) {
+            api.post(`/posts/${story._id}/view`).catch(err => console.error("Failed to record view", err));
+        } else {
+            setViewsCount(story.story_views?.length || 0);
+        }
+    }, [story, user]);
 
     const getMediaUrl = (path: string | undefined) => {
         if (!path) return "";
@@ -85,6 +106,46 @@ const StoryViewer = ({ story, onClose }: StoryViewerProps) => {
                         ) : (
                             <div className="text-white/50">Media unavailable</div>
                         )}
+
+                        {/* Interactive Bottom Bar (Instagram-like) */}
+                        <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/90 to-transparent z-10">
+                            {user?._id === story.user._id ? (
+                                <div className="flex items-center gap-2 cursor-pointer hover:bg-white/10 p-2 rounded-xl transition-colors w-max">
+                                    <Eye className="w-5 h-5 text-white" />
+                                    <span className="text-white font-medium text-sm">{viewsCount} Views</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1 relative">
+                                        <input
+                                            type="text"
+                                            value={replyText}
+                                            onChange={(e) => setReplyText(e.target.value)}
+                                            placeholder={`Reply to ${story.user.username}...`}
+                                            className="w-full bg-black/40 border border-white/20 rounded-full py-2.5 pl-4 pr-10 text-white text-sm placeholder:text-white/60 focus:outline-none focus:border-white w-full backdrop-blur-md transition-all h-[42px]"
+                                        />
+                                        <button
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white disabled:opacity-50"
+                                            disabled={!replyText.trim()}
+                                            onClick={() => {
+                                                toast({ title: "Sent", description: `Replied to ${story.user.username}` });
+                                                setReplyText("");
+                                            }}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <button className="text-white hover:text-red-500 hover:scale-110 active:scale-90 transition-all">
+                                            <Heart className="w-6 h-6" />
+                                        </button>
+                                        <button className="text-white/90 hover:text-white hover:scale-110 active:scale-90 transition-all">
+                                            <MessageCircle className="w-6 h-6" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </motion.div>
                 </motion.div>
             )}

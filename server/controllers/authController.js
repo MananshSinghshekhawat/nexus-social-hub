@@ -72,27 +72,37 @@ const forgotPassword = async (req, res) => {
 
         const resetUrl = `${req.get('origin')}/reset-password/${token}`;
 
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.log('\n======================================================');
-            console.log(' DEVELOPMENT MODE: EMAIL CREDENTIALS NOT CONFIGURED');
-            console.log(` Password reset link for ${user.email}:`);
-            console.log(` ${resetUrl}`);
-            console.log('======================================================\n');
-            return res.send({ message: 'Development mode: Password reset link has been logged to the server console.' });
-        }
-
         // Send email
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', // You can change this or use SMTP
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
+        let transporter;
+        let isDevMode = false;
+
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            isDevMode = true;
+            console.log('Using Ethereal Mail for development mode...');
+            const testAccount = await nodemailer.createTestAccount();
+            
+            transporter = nodemailer.createTransport({
+                host: "smtp.ethereal.email",
+                port: 587,
+                secure: false, // true for 465, false for other ports
+                auth: {
+                    user: testAccount.user, // generated ethereal user
+                    pass: testAccount.pass, // generated ethereal password
+                },
+            });
+        } else {
+            transporter = nodemailer.createTransport({
+                service: 'gmail', // You can change this or use SMTP
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS
+                }
+            });
+        }
 
         const mailOptions = {
             to: user.email,
-            from: process.env.EMAIL_USER,
+            from: process.env.EMAIL_USER || '"Nexus Logic" <noreply@nexuslogic.local>',
             subject: 'Nexus Logic Password Reset',
             text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
                 `Please click on the following link, or paste this into your browser to complete the process:\n\n` +
@@ -100,8 +110,19 @@ const forgotPassword = async (req, res) => {
                 `If you did not request this, please ignore this email and your password will remain unchanged.\n`
         };
 
-        await transporter.sendMail(mailOptions);
-        res.send({ message: 'An e-mail has been sent to ' + user.email + ' with further instructions.' });
+        const info = await transporter.sendMail(mailOptions);
+
+        if (isDevMode) {
+             const previewUrl = nodemailer.getTestMessageUrl(info);
+             console.log('\n======================================================');
+             console.log(' DEVELOPMENT MODE: EMAIL SENT VIA ETHEREAL MAIL');
+             console.log(` Preview URL: ${previewUrl}`);
+             console.log(` Or directly use this link: ${resetUrl}`);
+             console.log('======================================================\n');
+             return res.send({ message: 'Development mode: Password reset link has been logged to the server console.', previewUrl });
+        } else {
+             res.send({ message: 'An e-mail has been sent to ' + user.email + ' with further instructions.' });
+        }
 
     } catch (error) {
         console.error('Forgot password error:', error);

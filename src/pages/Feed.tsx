@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Music2 } from "lucide-react";
+import AIChatBot from "@/components/AIChatBot";
 
 interface Post {
   _id: string;
@@ -86,6 +87,7 @@ const Feed = () => {
           </div>
         )}
       </div>
+      <AIChatBot />
     </div>
   );
 };
