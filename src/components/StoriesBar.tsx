@@ -89,6 +89,8 @@ const StoriesBar = () => {
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 accept="image/*,video/*"
+                aria-label="Upload story media"
+                title="Upload story media"
                 className="hidden"
             />
 

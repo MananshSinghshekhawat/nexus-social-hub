@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react";
+import "./AIChatBot.css";
 
 interface Message {
   role: "user" | "assistant" | "system";
@@ -124,18 +125,22 @@ Deliver the most helpful, accurate, and practical response possible — like a t
       } else {
         throw new Error(data.error?.message || "Failed to get response from AI");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Chat API Error:", error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : "I'm having trouble connecting right now.";
+
       setMessages(prev => [...prev, { 
         role: "assistant", 
-        content: `Error: ${error.message || "I'm having trouble connecting right now."}` 
+        content: `Error: ${errorMessage}` 
       }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -146,17 +151,19 @@ Deliver the most helpful, accurate, and practical response possible — like a t
     <>
       {/* Floating Button */}
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
         className={`fixed bottom-6 right-6 p-4 rounded-full bg-primary text-white shadow-lg hover:shadow-xl transition-all duration-300 z-50 ${isOpen ? 'scale-0' : 'scale-100 hover:-translate-y-1'}`}
         aria-label="Open AI Chat"
+        title="Open AI Chat"
       >
         <MessageCircle size={28} />
+        <span className="sr-only">Open AI Chat</span>
       </button>
 
       {/* Chat Window */}
       <div 
-        className={`fixed bottom-6 right-6 w-80 sm:w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 flex flex-col z-50 transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}
-        style={{ height: '500px', maxHeight: 'calc(100vh - 48px)' }}
+        className={`ai-chatbot-window fixed bottom-6 right-6 w-80 sm:w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 flex flex-col z-50 transition-all duration-300 origin-bottom-right ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0 pointer-events-none'}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-primary/5 rounded-t-2xl">
@@ -170,10 +177,14 @@ Deliver the most helpful, accurate, and practical response possible — like a t
             </div>
           </div>
           <button 
+            type="button"
             onClick={() => setIsOpen(false)}
             className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+            aria-label="Close AI Chat"
+            title="Close AI Chat"
           >
             <X size={20} />
+            <span className="sr-only">Close AI Chat</span>
           </button>
         </div>
 
@@ -207,9 +218,9 @@ Deliver the most helpful, accurate, and practical response possible — like a t
                   <Bot size={16} />
                 </div>
                 <div className="p-4 rounded-2xl bg-gray-100 dark:bg-gray-800 rounded-bl-sm flex items-center gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="ai-chatbot-typing-dot-1 w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div className="ai-chatbot-typing-dot-2 w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div className="ai-chatbot-typing-dot-3 w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
                 </div>
               </div>
             </div>
@@ -225,15 +236,20 @@ Deliver the most helpful, accurate, and practical response possible — like a t
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask me anything..."
+              aria-label="Type your message"
               className="flex-1 max-h-32 min-h-[40px] py-2.5 bg-transparent border-none focus:ring-0 resize-none outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-400"
               rows={1}
             />
             <button
+              type="button"
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               className="p-2.5 m-0.5 rounded-full bg-primary text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex-shrink-0"
+              aria-label={isLoading ? "Sending message" : "Send message"}
+              title={isLoading ? "Sending message" : "Send message"}
             >
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              <span className="sr-only">{isLoading ? "Sending message" : "Send message"}</span>
             </button>
           </div>
         </div>

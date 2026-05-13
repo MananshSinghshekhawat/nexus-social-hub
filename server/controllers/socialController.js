@@ -3,6 +3,7 @@ const Like = require('../models/Like');
 const Comment = require('../models/Comment');
 const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
+const activityTracker = require('../middleware/activityTracker');
 
 const toggleLike = async (req, res) => {
     try {
@@ -15,6 +16,9 @@ const toggleLike = async (req, res) => {
             const like = new Like({ user: req.user._id, post: req.params.postId });
             await like.save();
             const post = await Post.findByIdAndUpdate(req.params.postId, { $inc: { likes_count: 1 } });
+
+            // Track like activity
+            await activityTracker.trackLike(req.user._id, req.params.postId, 'post');
 
             // Create notification
             if (post.user.toString() !== req.user._id.toString()) {
@@ -51,6 +55,9 @@ const addComment = async (req, res) => {
         await comment.save();
         const post = await Post.findByIdAndUpdate(req.params.postId, { $inc: { comments_count: 1 } });
 
+        // Track comment activity
+        await activityTracker.trackCommentCreated(req.user._id, comment._id, req.params.postId);
+
         // Create notification
         if (post.user.toString() !== req.user._id.toString()) {
             const notification = new Notification({
@@ -85,10 +92,17 @@ const toggleFollow = async (req, res) => {
         const existingFollow = await Follow.findOne({ follower: req.user._id, following: targetUserId });
         if (existingFollow) {
             await Follow.deleteOne({ _id: existingFollow._id });
+            
+            // Track unfollow activity
+            await activityTracker.trackUnfollow(req.user._id, targetUserId);
+            
             res.send({ following: false });
         } else {
             const follow = new Follow({ follower: req.user._id, following: targetUserId });
             await follow.save();
+
+            // Track follow activity
+            await activityTracker.trackFollow(req.user._id, targetUserId);
 
             // Create notification
             const notification = new Notification({

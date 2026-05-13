@@ -10,13 +10,12 @@ export const TimelineController = () => {
         audioTrack,
         setAudioTrack,
         setCurrentTime,
-        originalVolume,
         beatMarkers,
         setBeatMarkers
     } = useEditorStore();
 
     const wavesurferRef = useRef<WaveSurfer | null>(null);
-    const waveformContainerRef = useRef<HTMLDivElement>(null);
+    const waveformContainerRef = useRef<HTMLDivElement | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     useEffect(() => {
@@ -45,7 +44,7 @@ export const TimelineController = () => {
                 const channelData = decodedData.getChannelData(0); // Left channel
 
                 // Simple peak detection (find high energy spots)
-                const peaks = [];
+                const peaks: number[] = [];
                 const windowSize = sampleRate / 2; // 0.5s chunks
                 for (let i = 0; i < channelData.length; i += windowSize) {
                     let maxVal = 0;
@@ -115,7 +114,7 @@ export const TimelineController = () => {
                         if (percentage > 100) return null;
                         return (
                             <div
-                                key={idx}
+                                key={`${time}-${idx}`}
                                 className="absolute w-[2px] h-3 bg-primary/80 rounded-full top-1/2 -translate-y-1/2"
                                 style={{ left: `${percentage}%` }}
                             />

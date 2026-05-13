@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const User = require('../models/User');
+const activityTracker = require('../middleware/activityTracker');
 
 const getConversations = async (req, res) => {
     try {
@@ -70,6 +71,9 @@ const sendMessage = async (req, res) => {
             content: req.body.content
         });
         await message.save();
+
+        // Track message activity
+        await activityTracker.trackMessage(req.user._id, req.body.receiverId);
 
         // Send real-time notification
         const io = req.app.get('io');
