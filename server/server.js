@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Adjust for production
+        origin: "*", 
         methods: ["GET", "POST"]
     }
 });
@@ -46,6 +46,7 @@ const postRoutes = require('./routes/post');
 const userRoutes = require('./routes/user');
 const socialRoutes = require('./routes/social');
 const notificationRoutes = require('./routes/notifications');
+const wellbeingRoutes = require('./routes/wellbeing');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
@@ -54,6 +55,7 @@ app.use('/api/social', socialRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', require('./routes/message'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/wellbeing', wellbeingRoutes);
 
 // Socket.io connection logic
 io.on('connection', (socket) => {

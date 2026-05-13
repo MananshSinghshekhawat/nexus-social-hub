@@ -5,10 +5,11 @@ import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { Shield, Users, FileText, Search, Trash2, Eye } from "lucide-react";
+import { Shield, Users, FileText, Search, Trash2, Eye, Activity } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { getAllUsersWellbeingData, AdminUserWellbeingData } from "@/lib/wellbeingApi";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,7 @@ interface PostRow {
   created_at: string;
 }
 
-type Tab = "users" | "content";
+type Tab = "users" | "content" | "wellbeing";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -51,6 +52,7 @@ const AdminPanel = () => {
   const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
+  const [wellbeingUsers, setWellbeingUsers] = useState<AdminUserWellbeingData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
@@ -67,32 +69,40 @@ const AdminPanel = () => {
     return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${path}`;
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [statsRes, usersRes, postsRes] = await Promise.all([
-        api.get('/admin/stats'),
-        api.get('/admin/users'),
-        api.get('/admin/posts')
-      ]);
-      setStats(statsRes.data);
-      setUsers(usersRes.data);
-      setPosts(postsRes.data);
-    } catch (error: any) {
-      console.error("Failed to fetch admin data", error);
-      if (error.response?.status === 403 || error.response?.status === 401) {
-        toast({ title: "Access Denied", description: "You are not an admin", variant: "destructive" });
-      } else {
-        toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        if (tab === "wellbeing") {
+          const wellbeingData = await getAllUsersWellbeingData();
+          setWellbeingUsers(wellbeingData);
+        } else {
+          const [statsRes, usersRes, postsRes] = await Promise.all([
+            api.get('/admin/stats'),
+            api.get('/admin/users'),
+            api.get('/admin/posts')
+          ]);
+          setStats(statsRes.data);
+          setUsers(usersRes.data);
+          setPosts(postsRes.data);
+        }
+      } catch (error: unknown) {
+        console.error("Failed to fetch admin data", error);
+        const status = typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { status?: number } }).response?.status
+          : undefined;
+        if (status === 403 || status === 401) {
+          toast({ title: "Access Denied", description: "You are not an admin", variant: "destructive" });
+        } else {
+          toast({ title: "Error", description: "Failed to load admin data", variant: "destructive" });
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (isAdmin) fetchData();
-  }, [isAdmin]);
+  }, [isAdmin, toast, tab]);
 
   const handleDeletePost = async () => {
     if (!deletePostId) return;
@@ -172,18 +182,24 @@ const AdminPanel = () => {
 
       {/* Tabs + Search */}
       <div className="flex flex-col md:flex-row gap-3">
-        <div className="flex gap-1 w-full md:w-auto">
+        <div className="flex gap-1 w-full md:w-auto overflow-x-auto">
           <button
             onClick={() => setTab("users")}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "users" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === "users" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
           >
             <Users className="h-4 w-4 inline mr-1.5" /> Users
           </button>
           <button
             onClick={() => setTab("content")}
-            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${tab === "content" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === "content" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
           >
             <FileText className="h-4 w-4 inline mr-1.5" /> Content
+          </button>
+          <button
+            onClick={() => setTab("wellbeing")}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === "wellbeing" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+          >
+            <Activity className="h-4 w-4 inline mr-1.5" /> Wellbeing
           </button>
         </div>
         <div className="relative flex-1">
@@ -226,7 +242,7 @@ const AdminPanel = () => {
             <p className="text-center text-muted-foreground text-sm py-8">No users found</p>
           )}
         </div>
-      ) : (
+      ) : tab === "content" ? (
         <div className="space-y-2">
           {filteredPosts.map((p) => (
             <motion.div
@@ -285,7 +301,76 @@ const AdminPanel = () => {
             <p className="text-center text-muted-foreground text-sm py-8">No posts found</p>
           )}
         </div>
-      )}
+      ) : tab === "wellbeing" ? (
+        <div className="space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">User</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Today</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">This Week</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Total</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">Time Spent (min)</th>
+                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Last Login</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wellbeingUsers
+                  .filter((u) => 
+                    !searchQuery || 
+                    u.user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    u.user.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((u) => (
+                    <motion.tr
+                      key={u.user._id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="border-b border-border hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-muted overflow-hidden shrink-0">
+                            {u.user.avatar_url ? (
+                              <img src={getMediaUrl(u.user.avatar_url)} className="h-full w-full object-cover" alt="" />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-xs font-bold">
+                                {u.user.display_name?.[0]?.toUpperCase() || "U"}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{u.user.display_name}</p>
+                            <p className="text-xs text-muted-foreground">@{u.user.username}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-block bg-primary/10 text-primary px-2 py-1 rounded-md text-xs font-medium">
+                          {u.today}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-block bg-blue-500/10 text-blue-500 px-2 py-1 rounded-md text-xs font-medium">
+                          {u.week}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-medium">{u.total_activities}</td>
+                      <td className="py-3 px-4 text-center text-muted-foreground">{u.total_time_spent}</td>
+                      <td className="py-3 px-4 text-xs text-muted-foreground">
+                        {u.last_login ? formatDistanceToNow(new Date(u.last_login), { addSuffix: true }) : "Never"}
+                      </td>
+                    </motion.tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+          {wellbeingUsers.length === 0 && (
+            <p className="text-center text-muted-foreground text-sm py-8">No wellbeing data available</p>
+          )}
+        </div>
+      ) : null}
 
       {/* Delete Post confirmation */}
       <Dialog open={!!deletePostId} onOpenChange={() => setDeletePostId(null)}>

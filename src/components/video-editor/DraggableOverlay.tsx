@@ -4,13 +4,8 @@ import { useEditorStore, OverlayElement } from '@/store/useEditorStore';
 export const DraggableOverlay = ({ overlay }: { overlay: OverlayElement }) => {
     const { updateOverlay, removeOverlay, currentTime, beatMarkers } = useEditorStore();
 
-    // Only show if the current time is within the overlay's bounds (if bounds are set)
-    // For a real app, you'd allow editing these bounds in the timeline
-    if (overlay.startTime !== undefined && overlay.endTime !== undefined) {
-        if (currentTime < overlay.startTime || currentTime > overlay.endTime) {
-            return null;
-        }
-    }
+    // Determine visibility but DO NOT return early before calling hooks
+    const isVisible = !(overlay.startTime !== undefined && overlay.endTime !== undefined && (currentTime < overlay.startTime || currentTime > overlay.endTime));
 
     const bind = useDrag(({ offset: [x, y], last }) => {
         updateOverlay(overlay.id, { position: { x, y } });

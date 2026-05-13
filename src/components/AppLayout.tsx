@@ -145,6 +145,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 e.preventDefault();
                 logout();
               }}
+              aria-label="Log out"
+              title="Log out"
               className="text-muted-foreground hover:text-destructive transition-colors p-1"
             >
               <LogOut className="h-4 w-4" />

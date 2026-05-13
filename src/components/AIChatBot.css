@@ -1,0 +1,16 @@
+.ai-chatbot-window {
+  height: 500px;
+  max-height: calc(100vh - 48px);
+}
+
+.ai-chatbot-typing-dot-1 {
+  animation-delay: 0ms;
+}
+
+.ai-chatbot-typing-dot-2 {
+  animation-delay: 150ms;
+}
+
+.ai-chatbot-typing-dot-3 {
+  animation-delay: 300ms;
+}

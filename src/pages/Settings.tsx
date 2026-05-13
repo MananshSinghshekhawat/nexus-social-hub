@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { User, Lock, Bell, Palette, Save, LogOut, Trash2, Shield } from "lucide-react";
+import { User, Lock, Bell, Palette, Save, LogOut, Trash2, Shield, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { WellbeingChart } from "@/components/WellbeingChart";
+import { getUserWellbeingData, updateWellbeingSettings as updateWellbeingSettingsAPI, UserWellbeingData } from "@/lib/wellbeingApi";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +22,25 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-type Tab = "profile" | "account" | "notifications" | "appearance";
+type Tab = "profile" | "account" | "notifications" | "appearance" | "wellbeing";
+
+type ApiError = {
+  message?: string;
+  config?: {
+    url?: string;
+  };
+  response?: {
+    status?: number;
+    data?: {
+      error?: string;
+    };
+  };
+};
+
+type WellbeingErrorState = {
+  title: string;
+  description: string;
+};
 
 const Settings = () => {
   const { user, refreshProfile, logout } = useAuth();
@@ -29,6 +49,11 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState<Tab>("account");
   const [saving, setSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [wellbeingData, setWellbeingData] = useState<UserWellbeingData | null>(null);
+  const [wellbeingLoading, setWellbeingLoading] = useState(false);
+  const [wellbeingError, setWellbeingError] = useState<WellbeingErrorState | null>(null);
+  const [wellbeingEnabled, setWellbeingEnabled] = useState(true);
+  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
 
   // Profile form
   const [displayName, setDisplayName] = useState(user?.display_name || "");
@@ -51,6 +76,28 @@ const Settings = () => {
     document.documentElement.classList.contains("dark") ? "dark" : "light"
   );
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    const apiError = error as ApiError;
+    return apiError.response?.data?.error || fallback;
+  };
+
+  const getWellbeingErrorState = (error: unknown): WellbeingErrorState => {
+    const apiError = error as ApiError;
+    const requestUrl = apiError.config?.url || "";
+
+    if (apiError.response?.status === 404 && requestUrl.includes("/wellbeing")) {
+      return {
+        title: "Wellbeing API not available",
+        description: "Restart the backend server so it picks up the new /api/wellbeing routes."
+      };
+    }
+
+    return {
+      title: "Unable to load wellbeing data",
+      description: getErrorMessage(error, "Failed to load wellbeing data")
+    };
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
@@ -58,10 +105,10 @@ const Settings = () => {
       await api.patch('/users/me', { display_name: displayName, bio, website, username });
       await refreshProfile();
       toast({ title: "Profile updated", description: "Your changes have been saved." });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to update profile",
+        description: getErrorMessage(error, "Failed to update profile"),
         variant: "destructive"
       });
     } finally {
@@ -84,10 +131,10 @@ const Settings = () => {
       toast({ title: "Password updated" });
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to update password",
+        description: getErrorMessage(error, "Failed to update password"),
         variant: "destructive"
       });
     } finally {
@@ -101,10 +148,10 @@ const Settings = () => {
       await api.delete('/users/me');
       toast({ title: "Account deleted" });
       logout();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to delete account",
+        description: getErrorMessage(error, "Failed to delete account"),
         variant: "destructive"
       });
     } finally {
@@ -122,10 +169,56 @@ const Settings = () => {
     }
   };
 
+  const fetchWellbeingData = async () => {
+    setWellbeingLoading(true);
+    setWellbeingError(null);
+    try {
+      const data = await getUserWellbeingData();
+      setWellbeingData(data);
+      setWellbeingEnabled(data.user.wellbeing_enabled);
+      setDailyLimit(data.user.daily_limit || null);
+    } catch (error: unknown) {
+      const errorState = getWellbeingErrorState(error);
+      setWellbeingData(null);
+      setWellbeingError(errorState);
+      toast({
+        title: errorState.title,
+        description: errorState.description,
+        variant: "destructive"
+      });
+    } finally {
+      setWellbeingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "wellbeing") {
+      fetchWellbeingData();
+    }
+  }, [activeTab]);
+
+  const handleSaveWellbeingSettings = async () => {
+    setSaving(true);
+    try {
+      await updateWellbeingSettingsAPI(wellbeingEnabled, dailyLimit || undefined);
+      toast({ title: "Wellbeing settings updated" });
+      await fetchWellbeingData();
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: getErrorMessage(error, "Failed to update wellbeing settings"),
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const tabs = [
     { id: "account" as Tab, label: "Account", icon: Lock },
     { id: "notifications" as Tab, label: "Notifications", icon: Bell },
     { id: "appearance" as Tab, label: "Appearance", icon: Palette },
+    { id: "wellbeing" as Tab, label: "Digital Wellbeing", icon: Activity },
   ];
 
   return (
@@ -270,11 +363,72 @@ const Settings = () => {
                     onClick={() => toggleTheme("dark")}
                     className={`rounded-xl border-2 p-4 text-center transition-all ${theme === "dark" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
                   >
-                    <div className="mx-auto mb-2 h-10 w-10 rounded-full bg-card border border-border" style={{ background: "hsl(222 30% 7%)" }} />
+                    <div className="mx-auto mb-2 h-10 w-10 rounded-full border border-border bg-[hsl(222_30%_7%)]" />
                     <p className="text-sm font-medium">Dark</p>
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === "wellbeing" && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-lg font-semibold font-display">Digital Wellbeing</h2>
+                <p className="text-sm text-muted-foreground">Track and manage your platform activity</p>
+              </div>
+              <Separator />
+              
+              {wellbeingLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading wellbeing data...</p>
+                </div>
+              ) : wellbeingData ? (
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-sm">Settings</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+                        <div>
+                          <p className="text-sm font-medium">Enable Digital Wellbeing Tracking</p>
+                          <p className="text-xs text-muted-foreground">Track your platform activity and usage</p>
+                        </div>
+                        <Switch checked={wellbeingEnabled} onCheckedChange={setWellbeingEnabled} />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Daily Usage Limit (minutes)</Label>
+                        <Input
+                          type="number"
+                          value={dailyLimit || ''}
+                          onChange={(e) => setDailyLimit(e.target.value ? parseInt(e.target.value) : null)}
+                          placeholder="No limit"
+                          min="0"
+                          disabled={!wellbeingEnabled}
+                        />
+                        <p className="text-xs text-muted-foreground">Leave empty for no limit</p>
+                      </div>
+
+                      <Button onClick={handleSaveWellbeingSettings} disabled={saving} variant="outline" className="w-full">
+                        <Save className="h-4 w-4 mr-2" /> Save Settings
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <h3 className="font-medium text-sm mb-4">Your Activity Analytics</h3>
+                    <WellbeingChart data={wellbeingData} />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    {wellbeingError?.description || "Unable to load wellbeing data"}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

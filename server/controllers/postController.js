@@ -1,4 +1,5 @@
 const Post = require('../models/Post');
+const activityTracker = require('../middleware/activityTracker');
 const multer = require('multer');
 const path = require('path');
 const { Worker } = require('worker_threads');
@@ -56,6 +57,9 @@ const createPost = async (req, res) => {
         }
 
         await post.save();
+
+        // Track post creation activity
+        await activityTracker.trackPostCreated(req.user._id, post._id);
 
         if (isVideoType && video_url) {
             const absoluteInputPath = path.join(__dirname, '..', video_url); // Maps /uploads/...

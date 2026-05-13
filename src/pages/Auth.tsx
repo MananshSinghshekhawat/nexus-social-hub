@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "@/lib/api";
+import { isAxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,10 +43,13 @@ const Auth = () => {
         toast({ title: "Welcome!", description: "Account created successfully." });
         navigate("/");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = isAxiosError<{ error?: string }>(error)
+        ? (error.response?.data?.error ?? "Authentication failed")
+        : "Authentication failed";
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Authentication failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

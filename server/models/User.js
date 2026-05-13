@@ -13,6 +13,12 @@ const userSchema = new mongoose.Schema({
     role: { type: String, enum: ['admin', 'moderator', 'user'], default: 'user' },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    // Digital Wellbeing fields
+    wellbeing_enabled: { type: Boolean, default: true },
+    daily_limit: { type: Number, default: null }, // optional usage limit in minutes
+    last_login: { type: Date },
+    total_time_spent: { type: Number, default: 0 }, // in minutes
+    session_start: { type: Date }, // when current session started
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const activityTracker = require('../middleware/activityTracker');
 
 const register = async (req, res) => {
     try {
@@ -33,6 +34,10 @@ const login = async (req, res) => {
         }
 
         const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
+        
+        // Track login activity
+        await activityTracker.trackLogin(user._id);
+        
         res.send({ user, token });
     } catch (error) {
         res.status(400).send(error);

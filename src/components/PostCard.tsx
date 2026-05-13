@@ -146,7 +146,11 @@ const PostCard = ({ post, profile: authorProfile, onDelete }: PostCardProps) => 
               <MessageCircle className="h-4 w-4" />
               <span>{commentsCount}</span>
             </button>
-            <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+            <button
+              aria-label="Share post"
+              title="Share post"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
               <Share2 className="h-4 w-4" />
             </button>
           </div>
