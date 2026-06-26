@@ -1,5 +1,5 @@
-// import { motion } from "framer-motion";
-// import { Film } from "lucide-react";
+import { motion } from "framer-motion";
+import { Film } from "lucide-react";
 
 const Reels = () => {
     return (
